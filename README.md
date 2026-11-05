@@ -42,9 +42,9 @@ ailocalpack index build . --out /tmp/index.json
 
 | Workflow | When | What |
 | --- | --- | --- |
-| [Validate](.github/workflows/validate.yml) | every pull request | Builds the CLI, checks the pull request changes one pack folder (others: maintainers only), the pack is `alpha`, `ailocalpack pack validate` passes (manifest and string table formats, hashes and sizes, folder layout, size limits, **no executable files** by extension or by content), `schemas/` matches the CLI's, the index still builds. Problems show up as annotations on the files. |
-| [Auto-merge](.github/workflows/auto-merge.yml) | after Validate passes | From `main`'s copy of the checks: reads the changed files from the GitHub API, repeats the one-folder, `alpha` and validation checks on the pull request's head commit, squash-merges it and starts Publish. Pull requests that change anything else wait for a maintainer. |
-| [Publish index](.github/workflows/publish.yml) | push to `main`, after a merge, by hand | `ailocalpack index build`, then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. |
+| [Validate](.github/workflows/validate.yml) | every pull request | Builds the CLI, checks the pull request changes one pack folder (others: maintainers only), the pack is `alpha`, `ailocalpack pack validate` passes (manifest and string table formats, hashes and sizes, folder layout, size limits, links, **no executable files** by extension or by content), `schemas/` matches the CLI's, the index still builds. Problems show up as annotations on the files. |
+| [Auto-merge](.github/workflows/auto-merge.yml) | after Validate passes | From `master`'s copy of the checks: reads the changed files from the GitHub API, repeats the one-folder, `alpha` and validation checks on the pull request's head commit, squash-merges it and starts Publish. Pull requests that change anything else wait for a maintainer. |
+| [Publish index](.github/workflows/publish.yml) | push to `master`, after a merge, by hand | `ailocalpack index build`, then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. |
 
 The CLI is built from source at the pinned commit until the app ships releases; then CI downloads the released binary (pinned version and hash). To move the pin, change `ci/ailocalpack-ref` (and copy the new `schemas/` if they changed) in a maintainer pull request.
 
@@ -57,9 +57,18 @@ The workflows are tested with these pull requests whenever they change (open the
 | A copy of the sample pack under a new `<pack-id>` (folder and `id` renamed, `revision` 1) | Validate passes, Auto-merge merges it, Publish runs, `index.json` lists the new pack within minutes. Remove it afterwards in a maintainer pull request. |
 | The same, plus a file `strings/tool.exe` (any content) | Validate fails: `strings/tool.exe` *has an executable, script or archive extension*. Not merged. |
 | The same, with an ELF or `MZ` header saved as `strings/extra.json` | Validate fails: `strings/extra.json` *is a Windows executable (PE)* / *Linux executable (ELF)*. Not merged. |
+| `manifest.json` replaced by a link | Validate fails: `manifest.json` *is a link*. Not merged. |
 | A pack with `"status": "verified"` | Validate fails on `status`. Not merged. |
 | A pack plus a change to `README.md` | Validate fails for a contributor ("one pack per pull request"); for a maintainer it passes and waits for review. |
 | A wrong `strings.sha256` in the manifest | Validate fails on `strings.sha256`. Not merged. |
+
+### Repository settings
+
+Kept by hand (they aren't files):
+
+- **Pages**: source *GitHub Actions*.
+- **Ruleset on `master`**: no deletion, no force push, pull request required with 0 approvals and *Require review from Code Owners*, required status check `validate` (from GitHub Actions). So pack folders merge by themselves and everything with an owner in [CODEOWNERS](.github/CODEOWNERS) waits for a maintainer.
+- **Team** `ailocalpack/maintainers` with write access (the code owners).
 
 ## Sample pack
 

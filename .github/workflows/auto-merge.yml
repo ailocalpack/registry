@@ -1,7 +1,7 @@
-# Merges a contributor's pack pull request once Validate passed on it. Runs from main's copy of this file
+# Merges a contributor's pack pull request once Validate passed on it. Runs from master's copy of this file
 # with a write token, so it trusts nothing from the pull request: it reads the changed files from the API,
 # checks out the head commit as data (no script from it runs; only the CLI built from the pinned source and
-# main's scripts), and repeats the scope, alpha and validation checks itself before merging.
+# master's scripts), and repeats the scope, alpha and validation checks itself before merging.
 name: Auto-merge
 
 on:
@@ -28,7 +28,7 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           # workflow_run.pull_requests is empty for pull requests from forks, so look the head commit up.
-          number="$(gh pr list --repo "$REPO" --state open --base main --limit 200 --json number,headRefOid \
+          number="$(gh pr list --repo "$REPO" --state open --base master --limit 200 --json number,headRefOid \
             --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n 1)"
           if [[ -z "$number" ]]; then
             echo "No open pull request has head $HEAD_SHA (closed, or new commits pushed since)."
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.pr.outputs.number
         with:
-          ref: main
+          ref: master
           persist-credentials: false
 
       - name: Scope
@@ -69,8 +69,6 @@ jobs:
 
       - uses: ./.github/actions/setup-cli
         if: steps.scope.outputs.kind == 'pack'
-        with:
-          token: ${{ secrets.AILOCALPACK_SOURCE_TOKEN || github.token }}
 
       - name: Check the pack again
         if: steps.scope.outputs.kind == 'pack'
@@ -91,4 +89,4 @@ jobs:
         run: |
           gh pr merge "$NUMBER" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
           # A push made with GITHUB_TOKEN starts no workflow, so start the index publish explicitly.
-          gh workflow run publish.yml --repo "$REPO" --ref main
+          gh workflow run publish.yml --repo "$REPO" --ref master

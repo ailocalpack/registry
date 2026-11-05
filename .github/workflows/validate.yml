@@ -1,10 +1,10 @@
-# Required status check on main. Runs the pull request's own copy of this file, so it is advice for the
-# contributor; auto-merge.yml repeats every check from main's copy before it merges anything.
+# Required status check on master. Runs the pull request's own copy of this file, so it is advice for the
+# contributor; auto-merge.yml repeats every check from master's copy before it merges anything.
 name: Validate
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -18,15 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      # The test merge of the pull request into main: HEAD^1 is main, HEAD^2 the pull request.
+      # The test merge of the pull request into master: HEAD^1 is master, HEAD^2 the pull request.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
           persist-credentials: false
 
       - uses: ./.github/actions/setup-cli
-        with:
-          token: ${{ secrets.AILOCALPACK_SOURCE_TOKEN || github.token }}
 
       - name: Scope
         id: scope
@@ -45,13 +43,20 @@ jobs:
                exit 1 ;;
           esac
 
+      # Folder names come from the pull request, so they reach the shell through env, never through ${{ }}.
       - name: New packs and revisions are alpha
         if: steps.scope.outputs.kind == 'pack'
-        run: scripts/check-alpha.sh "${{ steps.scope.outputs.pack }}"
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+        run: scripts/check-alpha.sh "$PACK"
 
       - name: Validate packs
         if: steps.scope.outputs.packs != ''
-        run: ailocalpack pack validate ${{ steps.scope.outputs.packs }} --github
+        env:
+          PACKS: ${{ steps.scope.outputs.packs }}
+        run: |
+          read -ra packs <<< "$PACKS"
+          ailocalpack pack validate "${packs[@]}" --github
 
       - name: Schemas match the CLI
         run: diff -r "$RUNNER_TEMP/ailocalpack-cli/schemas" schemas

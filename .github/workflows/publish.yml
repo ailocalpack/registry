@@ -1,10 +1,10 @@
-# Builds index.json from main and publishes it, with the pack files it points to, to GitHub Pages:
+# Builds index.json from master and publishes it, with the pack files it points to, to GitHub Pages:
 # https://ailocalpack.github.io/registry/index.json
 name: Publish index
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -23,12 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: master
           persist-credentials: false
 
       - uses: ./.github/actions/setup-cli
-        with:
-          token: ${{ secrets.AILOCALPACK_SOURCE_TOKEN || github.token }}
 
       - name: Build the site
         run: |
