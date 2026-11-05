@@ -68,7 +68,7 @@ Kept by hand (they aren't files):
 
 - **Pages**: source *GitHub Actions*.
 - **Ruleset on `master`**: no deletion, no force push, pull request required with 0 approvals and *Require review from Code Owners*, required status check `validate` (from GitHub Actions). So pack folders merge by themselves and everything with an owner in [CODEOWNERS](.github/CODEOWNERS) waits for a maintainer.
-- **Team** `ailocalpack/maintainers` with write access (the code owners).
+- **Team** `ailocalpack/maintainers` with write access (the code owners). Maintainers make their organization membership **public**: with a private one GitHub reports a maintainer's pull request as `CONTRIBUTOR`, and Validate refuses it as a contributor's.
 
 ## Sample pack
 
