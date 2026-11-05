@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 20
     steps:
       # The test merge of the pull request into master: HEAD^1 is master, HEAD^2 the pull request.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
           persist-credentials: false

@@ -21,27 +21,27 @@ runs:
         echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
     - id: cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ${{ runner.temp }}/ailocalpack-cli
         key: ailocalpack-cli-${{ runner.os }}-${{ steps.ref.outputs.ref }}
 
     - if: steps.cache.outputs.cache-hit != 'true'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: ailocalpack/ailocalpack
         ref: ${{ steps.ref.outputs.ref }}
-        path: ${{ runner.temp }}/ailocalpack-src
+        path: _cli-src
         persist-credentials: false
 
     - if: steps.cache.outputs.cache-hit != 'true'
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
-        global-json-file: ${{ runner.temp }}/ailocalpack-src/global.json
+        global-json-file: _cli-src/global.json
 
     - if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      working-directory: ${{ runner.temp }}/ailocalpack-src
+      working-directory: _cli-src
       run: |
         dotnet publish src/AiLocalPack.Cli -c Release -r linux-x64 -o "$RUNNER_TEMP/ailocalpack-cli" -p:DebugType=none
         # Schemas travel with the CLI so the registry copy can be compared with the ones the CLI was built with.
