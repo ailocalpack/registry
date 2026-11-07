@@ -62,6 +62,9 @@ jobs:
           if git cat-file -e "$HEAD_SHA:games" 2>/dev/null; then
             git archive "$HEAD_SHA" games | tar -x -C _pr
           fi
+          # master's policy lists (never the pull request's): pack validate checks dependencies against
+          # _pr/policy/dependencies.json, and without it would refuse every pack that needs one.
+          [[ -d policy ]] && cp -r policy _pr/policy
           # Removed files are listed too; renames list the new name, and the old one as previous_filename.
           gh api --paginate "repos/$REPO/pulls/$NUMBER/files" \
             --jq '.[] | .filename, (.previous_filename // empty)' > _changed.txt
