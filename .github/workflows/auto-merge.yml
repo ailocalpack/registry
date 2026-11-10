@@ -35,6 +35,9 @@ jobs:
             exit 0
           fi
           echo "number=$number" >> "$GITHUB_OUTPUT"
+          # The fork the pull request comes from: where a patch pack's archive waits (its "patches" release).
+          gh pr view "$number" --repo "$REPO" --json headRepositoryOwner,headRepository \
+            --jq '"head_repo=" + .headRepositoryOwner.login + "/" + .headRepository.name' >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v5
         if: steps.pr.outputs.number
@@ -81,6 +84,37 @@ jobs:
           scripts/check-alpha.sh "_pr/$PACK"
           # _pr/ is a registry tree, so the layout check sees games/<game>/<language>/<pack-id>.
           ailocalpack pack validate "_pr/$PACK"
+
+      - name: Check the patch archive
+        if: steps.scope.outputs.kind == 'pack'
+        id: patch
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+          REPO: ${{ github.repository }}
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+        run: scripts/check-patch.sh "_pr/$PACK" "$REPO" "$HEAD_REPO" "$RUNNER_TEMP/patch" | tee -a "$GITHUB_OUTPUT"
+
+      # Before the merge, so the published index never names an asset that isn't there. A name already taken
+      # (an earlier run of this workflow) must hold the same bytes; a different file is never replaced.
+      - name: Copy the patch archive to the registry
+        if: steps.patch.outputs.archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ARCHIVE: ${{ steps.patch.outputs.archive }}
+          NAME: ${{ steps.patch.outputs.name }}
+        run: |
+          if ! gh api "repos/$REPO/releases/tags/patches" > /dev/null 2>&1; then
+            gh release create patches --repo "$REPO" --title "Patch archives" --latest=false \
+              --notes "Binary patch archives of packs (the manifests' patch.url). Added by auto-merge; never replaced."
+          fi
+          digest="$(gh api "repos/$REPO/releases/tags/patches" --jq ".assets[] | select(.name == env.NAME) | .digest // \"present\"")"
+          if [[ -z "$digest" ]]; then
+            gh release upload patches "$ARCHIVE" --repo "$REPO"
+          elif [[ "$digest" != "sha256:$(sha256sum "$ARCHIVE" | cut -d' ' -f1)" ]]; then
+            echo "::error::$NAME is already in the patches release with other content; a new revision gets a new name."
+            exit 1
+          fi
 
       - name: Merge
         if: steps.scope.outputs.kind == 'pack'
