@@ -1,6 +1,8 @@
-# ailocalpack registry
+<p align="center"><img src="assets/registry-icon-512.png" width="128" alt=""></p>
 
-Community localizations ("packs") for games, installed with the [ailocalpack](https://github.com/ailocalpack/ailocalpack) app.
+# AI Local Pack Registry
+
+Community localizations ("packs") for games, installed with the [AI Local Pack](https://github.com/ailocalpack/ailocalpack) app.
 The app reads one file, [`index.json`](https://ailocalpack.github.io/registry/index.json), published from this repository to GitHub Pages, and downloads only the packs a player installs.
 
 > **Disclaimer.** Packs are fan translations made by players, often with the help of AI agents. They are not made, checked or endorsed by the games' developers or publishers, and come without any warranty. A pack holds translated text and instructions for rebuilding game files on the player's machine: **no original game text, no game files, no programs** (a mod loader a pack needs, such as BepInEx, is downloaded by the app from its official release, see [Dependencies](#dependencies)). Use packs only with copies of games you own. Rights holders who want a pack removed, or no packs for their game at all, can open an issue (the takedown and opt-out process is being written down; until then an issue reaches the maintainers).
