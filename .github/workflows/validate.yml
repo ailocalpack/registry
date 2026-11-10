@@ -58,6 +58,16 @@ jobs:
           read -ra packs <<< "$PACKS"
           ailocalpack pack validate "${packs[@]}" --github
 
+      # A binary patch pack's archive travels as an asset of the author's fork ("patches" release); auto-merge
+      # copies it here. Names reach the shell through env only.
+      - name: Patch archive in the author's fork
+        if: steps.scope.outputs.kind == 'pack'
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+          REGISTRY: ${{ github.repository }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: scripts/check-patch.sh "$PACK" "$REGISTRY" "$HEAD_REPO" "$RUNNER_TEMP/patch"
+
       - name: Schemas match the CLI
         run: diff -r "$RUNNER_TEMP/ailocalpack-cli/schemas" schemas
 
