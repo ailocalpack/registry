@@ -5,7 +5,7 @@
 Community localizations ("packs") for games, installed with the [AI Local Pack](https://github.com/ailocalpack/ailocalpack) app.
 The app reads one file, [`index.json`](https://ailocalpack.github.io/registry/index.json), published from this repository to GitHub Pages, and downloads only the packs a player installs.
 
-> **Disclaimer.** Packs are fan translations made by players, often with the help of AI agents. They are not made, checked or endorsed by the games' developers or publishers, and come without any warranty. A pack holds translated text and instructions for rebuilding game files on the player's machine: **no original game text, no game files, no programs** (a mod loader a pack needs, such as BepInEx, is downloaded by the app from its official release, see [Dependencies](#dependencies)). Use packs only with copies of games you own. Rights holders who want a pack removed, or no packs for their game at all, can open an issue (the takedown and opt-out process is being written down; until then an issue reaches the maintainers).
+> **Disclaimer.** Packs are fan translations made by players, often with the help of AI agents. They are not made, checked or endorsed by the games' developers or publishers, and come without any warranty. A pack holds translated text and instructions for rebuilding game files on the player's machine: **no original game text, no game files, no programs** (a mod loader a pack needs, such as BepInEx, is downloaded by the app from its official release, see [Dependencies](#dependencies)). Use packs only with copies of games you own. Rights holders who want a pack removed, or no packs for their game at all: see [takedowns and studio opt-out](LEGAL.md).
 
 ## Layout
 
@@ -13,8 +13,8 @@ The app reads one file, [`index.json`](https://ailocalpack.github.io/registry/in
 games/<game folder>/<language>/<pack-id>/
   manifest.json            what the pack is, which game builds it fits, how to apply it
   strings/strings.json.gz  the translations (gzip'd JSON string table)
-schemas/                   JSON Schemas of manifest.json, the string table and index.json
-policy/                    lists the app relies on (dependency whitelist, anti-cheat whitelist, opt-outs, verified overrides); maintainers only
+schemas/                   JSON Schemas of manifest.json, the string table, index.json and the policy files
+policy/                    lists the app relies on (dependency whitelist, anti-cheat rules and whitelist, opt-outs, verified overrides); maintainers only
 ci/ailocalpack-ref         the ailocalpack commit CI builds its CLI from
 scripts/                   helpers the workflows run
 ```
@@ -64,6 +64,7 @@ The workflows are tested with these pull requests whenever they change (open the
 | A pack with `"status": "verified"` | Validate fails on `status`. Not merged. |
 | A pack plus a change to `README.md` | Validate fails for a contributor ("one pack per pull request"); for a maintainer it passes and waits for review. |
 | A wrong `strings.sha256` in the manifest | Validate fails on `strings.sha256`. Not merged. |
+| A pack for a game listed in `policy/opt-out.json` (a maintainer adds `steam:620` on a branch first) | Validate fails on `game`: *on the registry's opt-out list*. Not merged. |
 | A pack whose manifest has `"dependencies": [{"id": "bepinex", "version": "5.4.23.2"}]` | Validate passes, Auto-merge merges it (the version is on the whitelist). |
 | The same with `"version": "5.4.21"`, or `"id": "melonloader"` | Validate fails on `dependencies[0]`: *not on the registry's dependency whitelist*. Not merged. |
 
@@ -74,6 +75,7 @@ Kept by hand (they aren't files):
 - **Pages**: source *GitHub Actions*.
 - **Discussions** on, with a category **`Packs`** in the *Announcement* format (only maintainers and the Publish workflow open Discussions there; players react and comment).
 - **Ruleset on `master`**: no deletion, no force push, pull request required with 0 approvals and *Require review from Code Owners*, required status check `validate` (from GitHub Actions). So pack folders merge by themselves and everything with an owner in [CODEOWNERS](.github/CODEOWNERS) waits for a maintainer.
+- **Labels** `takedown`, `opt-out`, `block-report` (the issue templates apply them).
 - **Team** `ailocalpack/maintainers` with write access (the code owners). Maintainers make their organization membership **public**: with a private one GitHub reports a maintainer's pull request as `CONTRIBUTOR`, and Validate refuses it as a contributor's.
 
 ## Dependencies
@@ -109,6 +111,19 @@ An entry for an older revision no longer applies; a broken file stops the index 
 ## Sample pack
 
 [`games/fp-f362…0288/ru/sample-quest-ru`](games/fp-f362498e21ee992e45352516246500dac24e10b902c54cba2a144c51fe040288/ru/sample-quest-ru) is a Russian pack for *Sample Quest*, a synthetic RPG Maker MZ game that lives in the app repository as [`tests/fixtures/games/sample-quest`](https://github.com/ailocalpack/ailocalpack/tree/master/tests/fixtures/games/sample-quest) (a few text files, nothing to run). Add that folder to the app's library and the pack shows up for it.
+
+## Policy files
+
+Maintainer pull requests only (CODEOWNERS). Each has a JSON Schema in [`schemas/`](schemas); `ailocalpack index build` reads them with the same rules, and a broken file stops the build (the published index never loses a block by accident).
+
+| File | What | Schema |
+| --- | --- | --- |
+| [`policy/dependencies.json`](policy/dependencies.json) | Executables packs may require, see [Dependencies](#dependencies). Published in `index.json` as `dependencies`. | [dependency-whitelist](schemas/dependency-whitelist.schema.json) |
+| [`policy/opt-out.json`](policy/opt-out.json) | Games whose studio asked for no fan translations: `optOut` in the index, their packs left out, new ones refused by CI, install and generation blocked in the app. See [Studio opt-out](LEGAL.md#studio-opt-out). | [opt-out](schemas/opt-out.schema.json) |
+| [`policy/anti-cheat.json`](policy/anti-cheat.json) | Anti-cheat detection rules the app adds to its bundled list, games with an anti-cheat that leaves no files, and the whitelist of games that officially allow mods. Published in the index (`antiCheats`, per game `antiCheat` / `antiCheatAllowed`). See [Anti-cheat blocks](LEGAL.md#anti-cheat-blocks). | [anti-cheat](schemas/anti-cheat.schema.json) |
+| [`policy/verified.json`](policy/verified.json) | Maintainer overrides of `verified`, see [Ratings and `verified`](#ratings-and-verified). | [verified-policy](schemas/verified-policy.schema.json) |
+
+Issues use templates: [takedown request](https://github.com/ailocalpack/registry/issues/new?template=takedown.yml), [studio opt-out](https://github.com/ailocalpack/registry/issues/new?template=opt-out.yml), [wrong block](https://github.com/ailocalpack/registry/issues/new?template=block-report.yml); blank issues stay open for the app's *Report* link. What maintainers do with each: [LEGAL.md](LEGAL.md).
 
 ## License
 

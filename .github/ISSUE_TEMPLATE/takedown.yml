@@ -1,0 +1,53 @@
+name: Copyright takedown request
+description: You hold rights to a game and want a pack removed from this registry.
+title: "Takedown: <game name> (<game id>)"
+labels: [takedown]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The process is described in [LEGAL.md](https://github.com/ailocalpack/registry/blob/master/LEGAL.md#takedown-requests).
+        This issue is public. To keep the details private, use [GitHub's DMCA form](https://support.github.com/contact/dmca-takedown) instead; GitHub hosts this repository and handles it under its own policy.
+  - type: input
+    id: packs
+    attributes:
+      label: Packs to remove
+      description: Pack folders or links, e.g. `games/steam-620/ru/full`, or "all packs for this game".
+    validations:
+      required: true
+  - type: input
+    id: work
+    attributes:
+      label: The copyrighted work
+      description: The game (name, store page) and what you hold rights to.
+    validations:
+      required: true
+  - type: input
+    id: rights
+    attributes:
+      label: Who you are
+      description: The rights holder, or the agent acting for them, and how we can check it (an official website, a link from the store page, an e-mail domain).
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why the pack infringes
+      description: What in the pack is yours. Note that packs hold no game files and no original text, only translations and rebuild instructions.
+    validations:
+      required: true
+  - type: checkboxes
+    id: opt-out
+    attributes:
+      label: Future packs
+      options:
+        - label: Also refuse all future packs for this game (opt-out, see LEGAL.md).
+  - type: checkboxes
+    id: statements
+    attributes:
+      label: Statements
+      options:
+        - label: I believe in good faith that the use described is not authorized by the rights holder, its agent or the law.
+          required: true
+        - label: The information in this request is accurate, and I am the rights holder or authorized to act for them.
+          required: true

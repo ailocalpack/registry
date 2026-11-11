@@ -1,0 +1,28 @@
+name: Studio opt-out request
+description: You make or publish a game and don't want fan translations of it distributed here.
+title: "Opt-out: <game name> (<game id>)"
+labels: [opt-out]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An opt-out stops the registry from listing or accepting packs for the game, and the AI Local Pack app from installing or generating them. The process is described in [LEGAL.md](https://github.com/ailocalpack/registry/blob/master/LEGAL.md#studio-opt-out).
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      description: Name and store page (Steam link), or the game ID the app shows (`steam:620`).
+    validations:
+      required: true
+  - type: input
+    id: studio
+    attributes:
+      label: Studio or publisher
+      description: Who you are and how we can check it (an official website or social account linking to this issue, an e-mail domain).
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: e.g. an official translation is planned, or only some languages should be refused (we can only opt a whole game out for now).
