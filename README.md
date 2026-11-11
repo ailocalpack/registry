@@ -14,7 +14,7 @@ games/<game folder>/<language>/<pack-id>/
   manifest.json            what the pack is, which game builds it fits, how to apply it
   strings/strings.json.gz  the translations (gzip'd JSON string table)
 schemas/                   JSON Schemas of manifest.json, the string table and index.json
-policy/                    lists the app relies on (dependency whitelist, anti-cheat whitelist, opt-outs); maintainers only
+policy/                    lists the app relies on (dependency whitelist, anti-cheat whitelist, opt-outs, verified overrides); maintainers only
 ci/ailocalpack-ref         the ailocalpack commit CI builds its CLI from
 scripts/                   helpers the workflows run
 ```
@@ -47,7 +47,7 @@ ailocalpack index build . --out /tmp/index.json
 | --- | --- | --- |
 | [Validate](.github/workflows/validate.yml) | every pull request | Builds the CLI, checks the pull request changes one pack folder (others: maintainers only), the pack is `alpha`, `ailocalpack pack validate` passes (manifest and string table formats, hashes and sizes, folder layout, size limits, links, **no executable files** by extension or by content, every dependency on [`policy/dependencies.json`](policy/dependencies.json)), `schemas/` matches the CLI's, the index still builds, a binary patch pack's archive is in the author's fork with the manifest's size and SHA-256 ([`scripts/check-patch.sh`](scripts/check-patch.sh)). Problems show up as annotations on the files. |
 | [Auto-merge](.github/workflows/auto-merge.yml) | after Validate passes | From `master`'s copy of the checks: reads the changed files from the GitHub API, repeats the one-folder, `alpha`, validation and patch archive checks on the pull request's head commit (dependencies against `master`'s whitelist), copies a patch archive to this repository's `patches` release (never replacing a file of the same name with other content), squash-merges it and starts Publish. Pull requests that change anything else wait for a maintainer. |
-| [Publish index](.github/workflows/publish.yml) | push to `master`, after a merge, by hand | `ailocalpack index build` (the dependency whitelist goes into `index.json` as `dependencies`), then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. |
+| [Publish index](.github/workflows/publish.yml) | push to `master`, after a merge, every hour, by hand | `ailocalpack ratings collect` (each pack's Discussion: 👍 and works / doesn't work reports, see [Ratings and `verified`](#ratings-and-verified); opens the Discussion of a pack that has none), `ailocalpack index build` with those ratings (the dependency whitelist goes into `index.json` as `dependencies`), then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. Nothing is committed; when the Discussions can't be read the run fails and Pages keeps the previous index. |
 
 The CLI is built from source at the pinned commit until the app ships releases; then CI downloads the released binary (pinned version and hash). To move the pin, change `ci/ailocalpack-ref` (and copy the new `schemas/` if they changed) in a maintainer pull request.
 
@@ -72,6 +72,7 @@ The workflows are tested with these pull requests whenever they change (open the
 Kept by hand (they aren't files):
 
 - **Pages**: source *GitHub Actions*.
+- **Discussions** on, with a category **`Packs`** in the *Announcement* format (only maintainers and the Publish workflow open Discussions there; players react and comment).
 - **Ruleset on `master`**: no deletion, no force push, pull request required with 0 approvals and *Require review from Code Owners*, required status check `validate` (from GitHub Actions). So pack folders merge by themselves and everything with an owner in [CODEOWNERS](.github/CODEOWNERS) waits for a maintainer.
 - **Team** `ailocalpack/maintainers` with write access (the code owners). Maintainers make their organization membership **public**: with a private one GitHub reports a maintainer's pull request as `CONTRIBUTOR`, and Validate refuses it as a contributor's.
 
@@ -87,6 +88,23 @@ Adding a dependency or a version is a maintainer pull request to `policy/depende
 - `generated`: what the component creates while the game runs, deleted on uninstall when it wasn't there before (`BepInEx/LogOutput.log`; a folder ends with `/` and is removed only when empty; `*` only in the last part of a file inside a folder, `BepInEx/cache/*`).
 
 Entries are never edited in place once packs use them (a changed hash would make every install fail); a new release is a new version.
+
+## Ratings and `verified`
+
+Every pack has one Discussion in the **Packs** category, opened by Publish index; its first line `<!-- ailocalpack-pack <game id>/<language>/<pack-id> -->` ties it to the pack (don't edit it). Players rate from the app: a 👍 on the Discussion is a like, and *Works* / *Doesn't work* is a comment whose first line is a machine-readable marker (`<!-- ailocalpack-report {...} -->`); only the marker counts, the text around it is for people.
+
+Each run counts, for the pack's **current revision**: one report per account (its latest), not from the pack's authors or bots, from accounts at least 30 days old when they reported, and for a Steam game only reports from a build the manifest lists. Likes leave out the authors and bots. A revision with **3 such "works" reports, and more of them than "doesn't work" ones,** is listed as `verified` in `index.json`; manifests in git stay `alpha`. A new revision starts again from zero.
+
+Maintainers override that for one revision in [`policy/verified.json`](policy/verified.json) (a maintainer pull request):
+
+```json
+{"schemaVersion": 1, "packs": [
+  {"pack": "steam:620/ru/full", "revision": 3, "status": "verified", "note": "checked by hand"},
+  {"pack": "steam:620/de/komplett", "revision": 1, "status": "alpha", "note": "breaks the save menu, see the Discussion"}
+]}
+```
+
+An entry for an older revision no longer applies; a broken file stops the index build.
 
 ## Sample pack
 
