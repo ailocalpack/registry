@@ -1,0 +1,35 @@
+name: Report a wrong block
+description: The app refuses a game because of an anti-cheat or an opt-out, and you think that's wrong.
+title: "Block report: <game name> (<game id>)"
+labels: [block-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The quickest way is the app's **Report** link on the blocked game's page: it fills in the game, the reason and the file it found.
+        How blocks are decided: [LEGAL.md](https://github.com/ailocalpack/registry/blob/master/LEGAL.md#anti-cheat-blocks).
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      description: Name and the game ID the app shows (`steam:620`).
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What's wrong
+      options:
+        - The game officially allows mods (its anti-cheat shouldn't block it)
+        - The app found an anti-cheat the game doesn't have
+        - The game has an anti-cheat the app didn't find
+        - The game is opted out by mistake
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Details
+      description: A link to the studio's statement about mods, the file the app named, the anti-cheat's files or service name.
+    validations:
+      required: true

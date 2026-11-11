@@ -1,0 +1,9 @@
+# Blank issues stay on: the app's "Think this is a mistake? Report" link opens one with the game and the reason filled in.
+blank_issues_enabled: true
+contact_links:
+  - name: A pack doesn't work, or you like it
+    url: https://github.com/ailocalpack/registry/discussions/categories/packs
+    about: Rate the pack in the app (Works / Doesn't work) or comment on its Discussion.
+  - name: A problem with the app
+    url: https://github.com/ailocalpack/ailocalpack/issues
+    about: Bugs and ideas for AI Local Pack itself go to the app's repository.
