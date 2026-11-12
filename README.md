@@ -15,7 +15,7 @@ games/<game folder>/<language>/<pack-id>/
   strings/strings.json.gz  the translations (gzip'd JSON string table)
 schemas/                   JSON Schemas of manifest.json, the string table, index.json and the policy files
 policy/                    lists the app relies on (dependency whitelist, anti-cheat rules and whitelist, opt-outs, verified overrides); maintainers only
-ci/ailocalpack-ref         the ailocalpack commit CI builds its CLI from
+ci/ailocalpack-cli         the released ailocalpack CLI CI uses (version + SHA-256 of its archive)
 scripts/                   helpers the workflows run
 ```
 
@@ -34,7 +34,7 @@ Normally the app does this for you (*Publish* after generating a pack). By hand:
 4. Open a pull request that changes **only that one pack folder**.
 5. A binary patch pack: its archive `<game folder>-<language>-<pack-id>-<revision>.zip` goes into a release tagged `patches` **in your fork** (an asset, not a commit), and `patch.url` names this repository's copy, `https://github.com/ailocalpack/registry/releases/download/patches/<that name>`. CI checks the fork's file against `patch.size` / `patch.sha256` and copies it here when it merges the pull request.
 
-Check it locally with the CLI (built from the commit in [`ci/ailocalpack-ref`](ci/ailocalpack-ref)):
+Check it locally with the CLI (`ailocalpack-cli-<version>-<os>` from the app's [Releases](https://github.com/ailocalpack/ailocalpack/releases), the version in [`ci/ailocalpack-cli`](ci/ailocalpack-cli)):
 
 ```sh
 ailocalpack pack validate games/<game folder>/<language>/<pack-id>
@@ -45,11 +45,11 @@ ailocalpack index build . --out /tmp/index.json
 
 | Workflow | When | What |
 | --- | --- | --- |
-| [Validate](.github/workflows/validate.yml) | every pull request | Builds the CLI, checks the pull request changes one pack folder (others: maintainers only), the pack is `alpha`, `ailocalpack pack validate` passes (manifest and string table formats, hashes and sizes, folder layout, size limits, links, **no executable files** by extension or by content, every dependency on [`policy/dependencies.json`](policy/dependencies.json)), `schemas/` matches the CLI's, the index still builds, a binary patch pack's archive is in the author's fork with the manifest's size and SHA-256 ([`scripts/check-patch.sh`](scripts/check-patch.sh)). Problems show up as annotations on the files. |
+| [Validate](.github/workflows/validate.yml) | every pull request | Downloads the pinned CLI, checks the pull request changes one pack folder (others: maintainers only), the pack is `alpha`, `ailocalpack pack validate` passes (manifest and string table formats, hashes and sizes, folder layout, size limits, links, **no executable files** by extension or by content, every dependency on [`policy/dependencies.json`](policy/dependencies.json)), `schemas/` matches the CLI's, the index still builds, a binary patch pack's archive is in the author's fork with the manifest's size and SHA-256 ([`scripts/check-patch.sh`](scripts/check-patch.sh)). Problems show up as annotations on the files. |
 | [Auto-merge](.github/workflows/auto-merge.yml) | after Validate passes | From `master`'s copy of the checks: reads the changed files from the GitHub API, repeats the one-folder, `alpha`, validation and patch archive checks on the pull request's head commit (dependencies against `master`'s whitelist), copies a patch archive to this repository's `patches` release (never replacing a file of the same name with other content), squash-merges it and starts Publish. Pull requests that change anything else wait for a maintainer. |
 | [Publish index](.github/workflows/publish.yml) | push to `master`, after a merge, every hour, by hand | `ailocalpack ratings collect` (each pack's Discussion: 👍 and works / doesn't work reports, see [Ratings and `verified`](#ratings-and-verified); opens the Discussion of a pack that has none), `ailocalpack index build` with those ratings (the dependency whitelist goes into `index.json` as `dependencies`), then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. Nothing is committed; when the Discussions can't be read the run fails and Pages keeps the previous index. |
 
-The CLI is built from source at the pinned commit until the app ships releases; then CI downloads the released binary (pinned version and hash). To move the pin, change `ci/ailocalpack-ref` (and copy the new `schemas/` if they changed) in a maintainer pull request.
+CI uses the released CLI: [`ci/ailocalpack-cli`](ci/ailocalpack-cli) names an app release (`version=`) and the SHA-256 of its `ailocalpack-cli-<version>-linux-x64.tar.gz` (`sha256=`, also in the release's `ailocalpack-cli-<version>-SHA256SUMS.txt`); the archive is checked before it is unpacked and holds the `schemas/` the CLI was built with. To move the pin, change both lines (and copy the new `schemas/` if they changed) in a maintainer pull request.
 
 ### Checking CI by hand
 
