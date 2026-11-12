@@ -1,6 +1,6 @@
 # Merges a contributor's pack pull request once Validate passed on it. Runs from master's copy of this file
 # with a write token, so it trusts nothing from the pull request: it reads the changed files from the API,
-# checks out the head commit as data (no script from it runs; only the CLI built from the pinned source and
+# checks out the head commit as data (no script from it runs; only the pinned released CLI and
 # master's scripts), and repeats the scope, alpha and validation checks itself before merging.
 name: Auto-merge
 
