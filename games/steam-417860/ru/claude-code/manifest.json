@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "claude-code",
+  "game": "steam:417860",
+  "language": "ru",
+  "title": "Claude Code translation",
+  "authors": [
+    {
+      "github": "maximiliysiss",
+      "name": "Maxim Zimin"
+    }
+  ],
+  "revision": 1,
+  "revisions": [
+    {
+      "revision": 1,
+      "date": "2026-11-15T08:20:28Z",
+      "by": "maximiliysiss"
+    }
+  ],
+  "status": "alpha",
+  "agent": {
+    "id": "claude-code",
+    "version": "2.1.325",
+    "model": "claude-sonnet-5-5",
+    "quality": "quick"
+  },
+  "builds": [
+    {
+      "buildId": "6565354",
+      "files": {
+        "emily is away.app/Contents/Resources/Data/Managed/Assembly-CSharp.dll": "04e51e9d606e6eb4e49b447ed385330ab533ff044b2bd503afc6d1adb68b08f8",
+        "emily is away.app/Contents/Resources/Data/level0": "cb01dc21235770a0bf11c1e2f84f3eb7149ddb6aaf90ce6f2d1e13ad5b60a6e5",
+        "emily is away.app/Contents/Resources/Data/level1": "03b3e0ae774adf39162dc237ccfe32d35aa03e012bcb72366e9b572f7626e2c7",
+        "emily is away.app/Contents/Resources/Data/level2": "a3683a0ca57562894d109ac8d26ef06efc872680a34d9ac32d5a3e400b325f08"
+      }
+    }
+  ],
+  "strings": {
+    "path": "strings/strings.json.gz",
+    "sha256": "e11bb9da1bd34aff293649f7640efb50b4198489923d1132a69070b5a34b0a21",
+    "size": 55587
+  },
+  "patch": {
+    "format": "vcdiff",
+    "url": "https://github.com/ailocalpack/registry/releases/download/patches/steam-417860-ru-claude-code-1.zip",
+    "sha256": "1271dbb529d911348702ad712216a38432b0c74e041ed34bde9fbe0f9a55590b",
+    "size": 47662,
+    "files": {
+      "emily is away.app/Contents/Resources/Data/Managed/Assembly-CSharp.dll": "ec218c9fe4af81f4a6e9605673fb2de7a0ef75b15e07abb7757e7b88216a41c9",
+      "emily is away.app/Contents/Resources/Data/level0": "f6d2a4fe8f05a974993cdf38eab97cf291d42c4861f301cd965ab1dba3696a13",
+      "emily is away.app/Contents/Resources/Data/level1": "a48c1d5b79c6102662156eb7b519555421a8a0643a5e4ff602fc4a62fe28b2cd",
+      "emily is away.app/Contents/Resources/Data/level2": "1a68fa9a72506393f4109e85e9518582cde45cc6b5f3b7e1ef7d5116e22d875e"
+    }
+  },
+  "coverage": {
+    "translated": 1529,
+    "total": 1529
+  },
+  "license": "CC-BY-SA-4.0",
+  "created": "2026-11-15T08:20:28Z",
+  "updated": "2026-11-15T08:20:28Z"
+}
