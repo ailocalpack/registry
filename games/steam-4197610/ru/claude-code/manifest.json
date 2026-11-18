@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "claude-code",
+  "game": "steam:4197610",
+  "language": "ru",
+  "title": "Claude Code translation",
+  "authors": [
+    {
+      "github": "maximiliysiss",
+      "name": "Maxim Zimin"
+    }
+  ],
+  "revision": 1,
+  "revisions": [
+    {
+      "revision": 1,
+      "date": "2026-11-18T21:09:07Z",
+      "by": "maximiliysiss"
+    }
+  ],
+  "status": "alpha",
+  "agent": {
+    "id": "claude-code",
+    "version": "2.1.325",
+    "model": "claude-sonnet-5-5",
+    "quality": "balanced"
+  },
+  "builds": [
+    {
+      "buildId": "24263394",
+      "files": {
+        "Librarian/Content/Paks/Librarian-Windows.pak": "31071f7cc502c185583aa508c91931c41ae46bf09982fb30243ed538b03d8d4f"
+      },
+      "os": "windows"
+    }
+  ],
+  "strings": {
+    "path": "strings/strings.json.gz",
+    "sha256": "9dd4404ff36b769bc2b7aac1ae6057539e5315b853a8d5bb19e68ffaca011b1c",
+    "size": 101541
+  },
+  "patch": {
+    "format": "vcdiff",
+    "url": "https://github.com/ailocalpack/registry/releases/download/patches/steam-4197610-ru-claude-code-1.zip",
+    "sha256": "f339b3108f873e669e2490281e1a9c621f8f6166075c44fcdc27a3c438d6ace1",
+    "size": 181677,
+    "files": {
+      "Librarian/Content/Paks/Librarian-Windows.pak": "09701028563c2e376e0beaeeeeddb0bdfd80584f2d5122880cc5343ac02c033c"
+    }
+  },
+  "coverage": {
+    "translated": 1453,
+    "total": 1453
+  },
+  "license": "CC-BY-SA-4.0",
+  "created": "2026-11-18T21:09:07Z",
+  "updated": "2026-11-18T21:09:07Z"
+}
