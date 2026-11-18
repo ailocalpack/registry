@@ -78,7 +78,11 @@
         "required": ["files"],
         "properties": {
           "buildId": { "type": "string", "pattern": "^[0-9]{1,20}$" },
-          "files": { "$ref": "#/$defs/fileHashes" }
+          "files": { "$ref": "#/$defs/fileHashes" },
+          "os": {
+            "description": "The platform of the game files the pack was made from. A Steam build ID is the same on every OS while its files are not, so the build matches the player's only on the same platform; without it, on any. A build ID may be listed once per platform.",
+            "enum": ["windows", "macos", "linux"]
+          }
         }
       }
     },
@@ -131,6 +135,20 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/slug" }
+    },
+    "references": {
+      "description": "Packs of the same game the generation used as reference (credited, CC BY-SA 4.0): language, pack ID and revision; each pack once.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["language", "pack", "revision"],
+        "properties": {
+          "language": { "$ref": "#/properties/language" },
+          "pack": { "$ref": "#/$defs/slug" },
+          "revision": { "type": "integer", "minimum": 1 }
+        }
+      }
     },
     "coverage": {
       "type": "object",
