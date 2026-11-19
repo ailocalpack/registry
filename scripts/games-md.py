@@ -12,60 +12,13 @@ never turns into a pull request. The output has no timestamp: it changes only wh
 import argparse
 import json
 import os
-import re
 import sys
-import urllib.request
 
-LANGUAGES = {
-    "ar": ("Arabic", "العربية"), "bg": ("Bulgarian", "Български"), "cs": ("Czech", "Čeština"),
-    "da": ("Danish", "Dansk"), "de": ("German", "Deutsch"), "el": ("Greek", "Ελληνικά"),
-    "en": ("English", "English"), "es-ES": ("Spanish (Spain)", "Español"),
-    "es-419": ("Spanish (Latin America)", "Español (Latinoamérica)"), "fi": ("Finnish", "Suomi"),
-    "fr": ("French", "Français"), "hu": ("Hungarian", "Magyar"), "id": ("Indonesian", "Bahasa Indonesia"),
-    "it": ("Italian", "Italiano"), "ja": ("Japanese", "日本語"), "ko": ("Korean", "한국어"),
-    "nb": ("Norwegian", "Norsk"), "nl": ("Dutch", "Nederlands"), "pl": ("Polish", "Polski"),
-    "pt-BR": ("Portuguese (Brazil)", "Português (Brasil)"), "pt-PT": ("Portuguese (Portugal)", "Português"),
-    "ro": ("Romanian", "Română"), "ru": ("Russian", "Русский"), "sv": ("Swedish", "Svenska"),
-    "th": ("Thai", "ไทย"), "tr": ("Turkish", "Türkçe"), "uk": ("Ukrainian", "Українська"),
-    "vi": ("Vietnamese", "Tiếng Việt"), "zh-Hans": ("Chinese (Simplified)", "简体中文"),
-    "zh-Hant": ("Chinese (Traditional)", "繁體中文"),
-}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from registry_common import LANGUAGES, previous_names, read_manifest, steam_details  # noqa: E402
 
-STEAM_MARKER = re.compile(r"<!-- steam-names (\{.*\}) -->")
 YES, NO = "✅", "➖"
 APP = "https://github.com/ailocalpack/ailocalpack"
-
-
-def previous_names(path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            match = STEAM_MARKER.search(f.read())
-        return json.loads(match.group(1)) if match else {}
-    except (OSError, ValueError):
-        return {}
-
-
-def steam_details(app_id):
-    url = f"https://store.steampowered.com/api/appdetails?appids={app_id}&filters=basic"
-    request = urllib.request.Request(url, headers={"User-Agent": "ailocalpack-registry"})
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            entry = json.load(response).get(str(app_id), {})
-    except (OSError, ValueError):
-        return None
-    if not entry.get("success"):
-        return None
-    data = entry.get("data", {})
-    image = (data.get("header_image") or "").split("?")[0]
-    return {"name": data.get("name") or f"Steam app {app_id}", "image": image}
-
-
-def manifest(root, pack):
-    try:
-        with open(os.path.join(root, pack["manifest"]), encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError, KeyError):
-        return {}
 
 
 def escape(text):
@@ -147,7 +100,7 @@ def main():
         picture = f'<img src="{image}" width="140" alt=""><br>' if image else ""
         first = True
         for lang in sorted(packs, key=lambda t: LANGUAGES.get(t, (t,))[0]):
-            manifests = [manifest(args.root, p) for p in packs[lang]]
+            manifests = [read_manifest(args.root, p) for p in packs[lang]]
             voice = YES if any(m.get("audio") for m in manifests) else NO
             textures = YES if any(m.get("textures") for m in manifests) else NO
             text = YES if any(not m or m.get("strings") or m.get("patch") for m in manifests) else NO

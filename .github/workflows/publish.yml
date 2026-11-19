@@ -4,7 +4,7 @@
 # that has none, so likes, works / doesn't work counts and the verified status (3 confirmations of the current
 # revision, see the app's docs/packs-and-registry.md) are as fresh as the last run; the schedule keeps them so.
 # Nothing is committed: a failed collection fails the run and Pages keeps the previous index. GAMES.md (the list of
-# games with translations) is made from the same index; when it changed, the games-list job opens or updates the
+# games with translations) and the public site (scripts/site.py: catalog, game pages, requests) are made from the same index; when it changed, the games-list job opens or updates the
 # pull request "Update GAMES.md" from the branch bot/games-md for a maintainer to merge.
 name: Publish index
 
@@ -59,6 +59,9 @@ jobs:
           # Pack files resolve relative to index.json, so the games/ tree is published next to it.
           [[ -d games ]] && cp -r games _site/games
           cp -r schemas _site/schemas
+          # The public site around index.json: catalog, a page per game (games/<game folder>/index.html, beside its
+          # language folders), requests, sitemap. Steam names come from GAMES.md's marker, else from the store.
+          python3 -I scripts/site.py _site/index.json --root . --out _site --names GAMES.md --repo "$GITHUB_REPOSITORY"
 
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -75,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}index.json
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
