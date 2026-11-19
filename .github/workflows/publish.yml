@@ -3,7 +3,9 @@
 # Every run first collects the packs' ratings from their Discussions (category "Packs"), opening one for a pack
 # that has none, so likes, works / doesn't work counts and the verified status (3 confirmations of the current
 # revision, see the app's docs/packs-and-registry.md) are as fresh as the last run; the schedule keeps them so.
-# Nothing is committed: a failed collection fails the run and Pages keeps the previous index.
+# Nothing is committed: a failed collection fails the run and Pages keeps the previous index. GAMES.md (the list of
+# games with translations) is made from the same index; when it changed, the games-list job opens or updates the
+# pull request "Update GAMES.md" from the branch bot/games-md for a maintainer to merge.
 name: Publish index
 
 on:
@@ -62,6 +64,12 @@ jobs:
         with:
           path: _site
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: index
+          path: _site/index.json
+          retention-days: 1
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -71,3 +79,51 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  games-list:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: index
+          path: ${{ runner.temp }}/index
+
+      - name: Make GAMES.md
+        run: python3 -I scripts/games-md.py "$RUNNER_TEMP/index/index.json" --root . --out GAMES.md
+
+      # One pull request at a time from bot/games-md, rebuilt on master's head every time GAMES.md differs from
+      # master's. A pull request opened with the workflow token starts no workflows, so a maintainer merges it past
+      # the required check (Repository settings in README.md).
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: bot/games-md
+        run: |
+          if git diff --quiet -- GAMES.md && git ls-files --error-unmatch GAMES.md >/dev/null 2>&1; then
+            echo "GAMES.md is up to date."
+            exit 0
+          fi
+          if git fetch -q origin "$BRANCH" 2>/dev/null && git diff --quiet FETCH_HEAD -- GAMES.md \
+             && [[ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]]; then
+            echo "The open pull request already has this GAMES.md."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add GAMES.md
+          git commit -q -m "Update GAMES.md"
+          git push -f origin "$BRANCH"
+          if [[ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]]; then
+            gh pr create --base master --head "$BRANCH" --title "Update GAMES.md" \
+              --body "The list of games with translations, made by \`scripts/games-md.py\` from the index Publish just built. Merge as is; the next run rebuilds this branch if more packs arrive first."
+          fi

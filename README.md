@@ -3,6 +3,8 @@
 # AI Local Pack Registry
 
 Community localizations ("packs") for games, installed with the [AI Local Pack](https://github.com/ailocalpack/ailocalpack) app.
+Which games have translations, into which languages, and what they cover: [GAMES.md](GAMES.md).
+
 The app reads one file, [`index.json`](https://ailocalpack.github.io/registry/index.json), published from this repository to GitHub Pages, and downloads only the packs a player installs.
 
 > **Disclaimer.** Packs are fan translations made by players, often with the help of AI agents. They are not made, checked or endorsed by the games' developers or publishers, and come without any warranty. A pack holds translated text and instructions for rebuilding game files on the player's machine: **no original game text, no game files, no programs** (a mod loader a pack needs, such as BepInEx, is downloaded by the app from its official release, see [Dependencies](#dependencies)). Use packs only with copies of games you own. Rights holders who want a pack removed, or no packs for their game at all: see [takedowns and studio opt-out](LEGAL.md).
@@ -17,6 +19,7 @@ schemas/                   JSON Schemas of manifest.json, the string table, inde
 policy/                    lists the app relies on (dependency whitelist, anti-cheat rules and whitelist, opt-outs, verified overrides); maintainers only
 ci/ailocalpack-cli         the released ailocalpack CLI CI uses (version + SHA-256 of its archive)
 scripts/                   helpers the workflows run
+GAMES.md                   the list of games with translations, made by scripts/games-md.py (don't edit by hand)
 ```
 
 - `<game folder>` is the game ID with `:` replaced by `-`: `steam-620` for a Steam game, `fp-<64 hex>` for a game added from a folder (its fingerprint).
@@ -47,7 +50,7 @@ ailocalpack index build . --out /tmp/index.json
 | --- | --- | --- |
 | [Validate](.github/workflows/validate.yml) | every pull request | Downloads the pinned CLI, checks the pull request changes one pack folder (others: maintainers only), the pack is `alpha`, `ailocalpack pack validate` passes (manifest and string table formats, hashes and sizes, folder layout, size limits, links, **no executable files** by extension or by content, every dependency on [`policy/dependencies.json`](policy/dependencies.json)), `schemas/` matches the CLI's, the index still builds, a binary patch pack's archive is in the author's fork with the manifest's size and SHA-256 ([`scripts/check-patch.sh`](scripts/check-patch.sh)). Problems show up as annotations on the files. |
 | [Auto-merge](.github/workflows/auto-merge.yml) | after Validate passes | From `master`'s copy of the checks: reads the changed files from the GitHub API, repeats the one-folder, `alpha`, validation and patch archive checks on the pull request's head commit (dependencies against `master`'s whitelist), copies a patch archive to this repository's `patches` release (never replacing a file of the same name with other content), squash-merges it and starts Publish. Pull requests that change anything else wait for a maintainer. |
-| [Publish index](.github/workflows/publish.yml) | push to `master`, after a merge, every hour, by hand | `ailocalpack ratings collect` (each pack's Discussion: 👍 and works / doesn't work reports, see [Ratings and `verified`](#ratings-and-verified); opens the Discussion of a pack that has none), `ailocalpack index build` with those ratings (the dependency whitelist goes into `index.json` as `dependencies`), then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. Nothing is committed; when the Discussions can't be read the run fails and Pages keeps the previous index. |
+| [Publish index](.github/workflows/publish.yml) | push to `master`, after a merge, every hour, by hand | `ailocalpack ratings collect` (each pack's Discussion: 👍 and works / doesn't work reports, see [Ratings and `verified`](#ratings-and-verified); opens the Discussion of a pack that has none), `ailocalpack index build` with those ratings (the dependency whitelist goes into `index.json` as `dependencies`), then publishes `index.json`, `games/` and `schemas/` to <https://ailocalpack.github.io/registry/>. Nothing is committed; when the Discussions can't be read the run fails and Pages keeps the previous index. Then [`scripts/games-md.py`](scripts/games-md.py) makes [GAMES.md](GAMES.md) from that index (Steam names and pictures from the store); when it differs from `master`'s, the pull request *Update GAMES.md* (branch `bot/games-md`) is opened or updated for a maintainer to merge. |
 
 CI uses the released CLI: [`ci/ailocalpack-cli`](ci/ailocalpack-cli) names an app release (`version=`) and the SHA-256 of its `ailocalpack-cli-<version>-linux-x64.tar.gz` (`sha256=`, also in the release's `ailocalpack-cli-<version>-SHA256SUMS.txt`); the archive is checked before it is unpacked and holds the `schemas/` the CLI was built with. To move the pin, change both lines (and copy the new `schemas/` if they changed) in a maintainer pull request.
 
@@ -75,6 +78,7 @@ Kept by hand (they aren't files):
 - **Pages**: source *GitHub Actions*.
 - **Discussions** on, with a category **`Packs`** in the *Announcement* format (only maintainers and the Publish workflow open Discussions there; players react and comment).
 - **Ruleset on `master`**: no deletion, no force push, pull request required with 0 approvals and *Require review from Code Owners*, required status check `validate` (from GitHub Actions). So pack folders merge by themselves and everything with an owner in [CODEOWNERS](.github/CODEOWNERS) waits for a maintainer.
+- **Actions → General → Workflow permissions**: *Allow GitHub Actions to create and approve pull requests* on (Publish index opens *Update GAMES.md*). Such a pull request starts no workflows, so `validate` never reports on it: a maintainer merges it with the ruleset's bypass.
 - **Labels** `takedown`, `opt-out`, `block-report` (the issue templates apply them).
 - **Team** `ailocalpack/maintainers` with write access (the code owners). Maintainers make their organization membership **public**: with a private one GitHub reports a maintainer's pull request as `CONTRIBUTOR`, and Validate refuses it as a contributor's.
 
