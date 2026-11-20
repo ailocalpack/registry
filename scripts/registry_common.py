@@ -1,5 +1,5 @@
-"""What GAMES.md (scripts/games-md.py) and the site (scripts/site.py) share: language names, Steam names and
-header pictures, manifests. Standard library only; the scripts run with `python3 -I` (they add this folder to
+"""What GAMES.md (scripts/games-md.py) and the site (scripts/site.py) share: language names, game names and
+pictures from the stores (Steam, GOG) or the packs' own manifests (`gameName`), manifests. Standard library only; the scripts run with `python3 -I` (they add this folder to
 sys.path themselves)."""
 
 import json
@@ -23,7 +23,17 @@ LANGUAGES = {
     "zh-Hant": ("Chinese (Traditional)", "繁體中文"),
 }
 
-STEAM_MARKER = re.compile(r"<!-- steam-names (\{.*\}) -->")
+# GAMES.md's cache of what the stores answered (game ID → {"name", "image"}); `steam-names` is its name before GOG.
+NAMES_MARKER = re.compile(r"<!-- (?:store|steam)-names (\{.*\}) -->")
+
+# Game ID prefix → (store name, where the app finds its games). Epic Games and the EA app have no public lookup
+# by the IDs the app records, so their names come from the manifests and they get no store link.
+STORES = {
+    "steam": ("Steam", "your Steam library"),
+    "gog": ("GOG", "your GOG library (GOG Galaxy or Heroic)"),
+    "epic": ("Epic Games", "your Epic Games library (the Epic Games Launcher or Heroic)"),
+    "ea": ("EA app", "your EA app library"),
+}
 
 
 def english_name(tag):
@@ -39,30 +49,101 @@ def game_folder(game_id):
     return game_id.replace(":", "-")
 
 
+def store_of(game_id):
+    """The game ID's store prefix (`steam`, `gog`, `epic`, `ea`), or None for a game added from a folder."""
+    prefix = game_id.split(":", 1)[0]
+    return prefix if prefix in STORES else None
+
+
 def previous_names(path):
-    """Steam names and pictures a GAMES.md recorded in its `<!-- steam-names {...} -->` marker; {} when none."""
+    """Store names and pictures a GAMES.md recorded in its `<!-- store-names {...} -->` marker; {} when none."""
     try:
         with open(path, encoding="utf-8") as f:
-            match = STEAM_MARKER.search(f.read())
+            match = NAMES_MARKER.search(f.read())
         return json.loads(match.group(1)) if match else {}
     except (OSError, ValueError):
         return {}
 
 
-def steam_details(app_id):
-    """{"name", "image"} from the Steam store, or None when it can't be reached or doesn't know the app."""
-    url = f"https://store.steampowered.com/api/appdetails?appids={app_id}&filters=basic"
+def _get_json(url):
     request = urllib.request.Request(url, headers={"User-Agent": "ailocalpack-registry"})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            entry = json.load(response).get(str(app_id), {})
+            return json.load(response)
     except (OSError, ValueError):
         return None
-    if not entry.get("success"):
+
+
+def steam_details(app_id):
+    """{"name", "image"} from the Steam store, or None when it can't be reached or doesn't know the app."""
+    entry = (_get_json(f"https://store.steampowered.com/api/appdetails?appids={app_id}&filters=basic") or {}).get(str(app_id), {})
+    if not isinstance(entry, dict) or not entry.get("success"):
         return None
     data = entry.get("data", {})
-    image = (data.get("header_image") or "").split("?")[0]
-    return {"name": data.get("name") or f"Steam app {app_id}", "image": image}
+    if not data.get("name"):
+        return None
+    return {"name": data["name"], "image": (data.get("header_image") or "").split("?")[0]}
+
+
+def gog_details(product_id):
+    """{"name", "image", "store"} from GOG's public product API, or None when it can't be reached or doesn't know it."""
+    data = _get_json(f"https://api.gog.com/products/{product_id}")
+    if not isinstance(data, dict) or not data.get("title"):
+        return None
+    image = ((data.get("images") or {}).get("logo2x") or "").split("?")[0]
+    if image.startswith("//"):
+        image = "https:" + image
+    card = (data.get("links") or {}).get("product_card") or ""
+    return {"name": data["title"], "image": image, "store": card if card.startswith("https://www.gog.com/") else ""}
+
+
+def store_details(game_id):
+    """What the game's store says about it ({"name", "image"}, GOG also "store"), or None: no answer, or a store
+    without a public lookup (Epic Games, EA app) or a game added from a folder."""
+    store, value = store_of(game_id), game_id.split(":", 1)[-1]
+    if store == "steam":
+        return steam_details(value)
+    if store == "gog":
+        return gog_details(value)
+    return None
+
+
+def store_link(game_id, details):
+    """The game's store page, or None (Epic Games and EA IDs aren't the store's page addresses)."""
+    store, value = store_of(game_id), game_id.split(":", 1)[-1]
+    if store == "steam":
+        return f"https://store.steampowered.com/app/{value}/"
+    if store == "gog":
+        return (details or {}).get("store") or None
+    return None
+
+
+def manifest_name(manifests):
+    """The `gameName` of the newest manifest that has one, or None (packs from before the app wrote it)."""
+    named = [m for m in manifests if isinstance(m.get("gameName"), str) and m["gameName"].strip()]
+    if not named:
+        return None
+    return max(named, key=lambda m: str(m.get("updated", "")))["gameName"].strip()
+
+
+def fallback_name(game_id):
+    """A name for a game no store or manifest names."""
+    store = store_of(game_id)
+    if store is None:
+        return f"A game added from a folder ({game_id[3:10]}…)"
+    return f"{STORES[store][0]} game {game_id.split(':', 1)[1]}"
+
+
+def game_details(game_id, manifests, known, fetch=store_details, known_first=True):
+    """{"name", "image", "store", "cached"} for a game: the store's answer (or what <known> recorded of an earlier
+    one; <known_first> asks the store only when nothing is known), else the manifests' `gameName`, else a fallback
+    name. "cached" is the store's answer to record for next time, or None."""
+    answer = None
+    if store_of(game_id) is not None:
+        answer = (known.get(game_id) or fetch(game_id)) if known_first else (fetch(game_id) or known.get(game_id))
+    name = (answer or {}).get("name") or manifest_name(manifests) or fallback_name(game_id)
+    return {"name": name, "image": (answer or {}).get("image") or "", "store": store_link(game_id, answer),
+            "cached": answer}
 
 
 def read_manifest(root, pack):

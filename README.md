@@ -23,7 +23,7 @@ GAMES.md                   the list of games with translations, made by scripts/
 site/                      stylesheet and script of the public site, which scripts/site.py builds around index.json
 ```
 
-- `<game folder>` is the game ID with `:` replaced by `-`: `steam-620` for a Steam game, `fp-<64 hex>` for a game added from a folder (its fingerprint).
+- `<game folder>` is the game ID with `:` replaced by `-`: `steam-620` for a Steam game, `epic-<AppName>`, `gog-<product id>`, `ea-<content id>` for the other stores, `fp-<64 hex>` for a game added from a folder (its fingerprint).
 - `<language>` is a tag the app knows: `ru`, `de`, `pt-BR`, `es-419`, `zh-Hans`, ...
 - `<pack-id>` is the manifest's `id` (lowercase letters, digits and dashes). Several packs per game and language are fine.
 - The formats are described by the files in [`schemas/`](schemas) and in the app's [CLAUDE.md](https://github.com/ailocalpack/ailocalpack/blob/master/CLAUDE.md#pack-format).

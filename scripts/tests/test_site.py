@@ -72,13 +72,15 @@ NAMES = {
 }
 
 
-def manifest(lang, pack_id, recipe=None):
-    m = {"id": pack_id, "language": lang, "title": "T", "authors": [{"github": "alice", "name": "Alice"}],
+def manifest(lang, pack_id, recipe=None, game_name=None, updated="2026-11-10T10:00:00Z"):
+    m = {"id": pack_id, "updated": updated, "language": lang, "title": "T", "authors": [{"github": "alice", "name": "Alice"}],
          "agent": {"id": "claude-code", "quality": "balanced"}, "builds": [{"buildId": "123", "os": "windows"}]}
     if recipe:
         m["recipe"] = {"tool": recipe, "version": "1.0.0"}
     else:
         m["patch"] = {"format": "vcdiff"}
+    if game_name:
+        m["gameName"] = game_name
     return m
 
 
@@ -97,13 +99,26 @@ class SiteTest(unittest.TestCase):
             with open(os.path.join(path, "manifest.json"), "w", encoding="utf-8") as f:
                 json.dump(manifest(lang, pack_id, recipe), f)
         self.fetched = []
+        self.answers = {}
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def fetch(self, app_id):
-        self.fetched.append(app_id)
-        return None
+    def fetch(self, game_id):
+        self.fetched.append(game_id)
+        return self.answers.get(game_id)
+
+    def add_game(self, game_id, *manifests):
+        """A game whose packs are the given (language, pack ID, manifest) triples; returns the index with it."""
+        folder = game_id.replace(":", "-")
+        packs = {}
+        for lang, pack_id, m in manifests:
+            path = os.path.join(self.root, "games", folder, lang, pack_id)
+            os.makedirs(path)
+            with open(os.path.join(path, "manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(m, f)
+            packs.setdefault(lang, []).append(pack(folder, lang, pack_id))
+        return {**INDEX, "games": {**INDEX["games"], game_id: {"packs": packs}}}
 
     def build(self, index=INDEX, names=NAMES):
         return site.build(index, self.root, self.out, "ailocalpack/registry", names, self.fetch)
@@ -198,8 +213,63 @@ class SiteTest(unittest.TestCase):
         self.build(names=names)
 
         # Assert
-        self.assertEqual(self.fetched, ["800"])
-        self.assertIn("Steam app 800", self.read("requests", "index.html"))
+        self.assertEqual(self.fetched, ["steam:800"])
+        self.assertIn("Steam game 800", self.read("requests", "index.html"))
+
+    def test_an_epic_game_takes_the_newest_manifests_name_and_has_no_store_link(self):
+        # Arrange
+        index = self.add_game("epic:Fennel", ("ru", "a", manifest("ru", "a", "unity", "Hollow Fields")),
+                              ("de", "b", manifest("de", "b", "unity", "Hollow Fields: Remastered", "2026-11-12T00:00:00Z")))
+
+        # Act
+        self.build(index)
+
+        # Assert
+        page = self.read("games", "epic-Fennel", "index.html")
+        self.assertIn("<h1>Hollow Fields: Remastered</h1>", page)
+        self.assertIn("your Epic Games library", page)
+        self.assertNotIn("Store page", page)
+
+    def test_a_gog_game_takes_the_stores_name_picture_and_page(self):
+        # Arrange
+        index = self.add_game("gog:1207658924", ("ru", "a", manifest("ru", "a", "unity", "The Witcher")))
+        self.answers["gog:1207658924"] = {"name": "The Witcher: Enhanced Edition", "image": "https://cdn.example/w.jpg",
+                                          "store": "https://www.gog.com/game/the_witcher"}
+
+        # Act
+        self.build(index)
+
+        # Assert
+        page = self.read("games", "gog-1207658924", "index.html")
+        self.assertIn("<h1>The Witcher: Enhanced Edition</h1>", page)
+        self.assertIn('href="https://www.gog.com/game/the_witcher"', page)
+        self.assertIn("#b-gog", page)
+
+    def test_a_store_without_an_answer_falls_back_to_the_manifests_name(self):
+        # Arrange
+        index = self.add_game("gog:42", ("ru", "a", manifest("ru", "a", "unity", "Little Lantern")))
+
+        # Act
+        self.build(index)
+
+        # Assert
+        page = self.read("games", "gog-42", "index.html")
+        self.assertIn("<h1>Little Lantern</h1>", page)
+        self.assertNotIn("Store page", page)
+
+    def test_a_manual_game_takes_its_manifests_name_and_is_added_by_folder(self):
+        # Arrange
+        game_id = "fp:" + "b" * 64
+        index = self.add_game(game_id, ("ru", "a", manifest("ru", "a", "unity", "Sample Quest")))
+
+        # Act
+        self.build(index)
+
+        # Assert
+        page = self.read("games", "fp-" + "b" * 64, "index.html")
+        self.assertIn("<h1>Sample Quest</h1>", page)
+        self.assertIn("Add game folder", page)
+        self.assertEqual([g for g in self.fetched if g.startswith("fp:")], [])
 
     def test_sitemap_and_robots_name_the_pages_address(self):
         # Arrange / Act
@@ -258,6 +328,27 @@ class GamesMdTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         with open(out, encoding="utf-8") as f:
             self.assertIn("A game added from a folder", f.read())
+
+    def test_names_an_epic_game_by_its_manifest(self):
+        # Arrange
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        index_path, out = os.path.join(tmp, "index.json"), os.path.join(tmp, "GAMES.md")
+        folder = os.path.join(tmp, "games", "epic-Fennel", "ru", "p")
+        os.makedirs(folder)
+        with open(os.path.join(folder, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest("ru", "p", "unity", "Hollow Fields"), f)
+        with open(index_path, "w", encoding="utf-8") as f:
+            json.dump({"games": {"epic:Fennel": {"packs": {"ru": [pack("epic-Fennel", "ru", "p")]}}}}, f)
+
+        # Act
+        result = subprocess.run([sys.executable, "-I", os.path.join(SCRIPTS, "games-md.py"), index_path,
+                                 "--root", tmp, "--out", out], capture_output=True, text=True)
+
+        # Assert
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(out, encoding="utf-8") as f:
+            self.assertIn("**Hollow Fields**", f.read())
 
 
 if __name__ == "__main__":

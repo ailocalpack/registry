@@ -4,9 +4,10 @@
     python3 -I scripts/games-md.py <index.json> [--root .] [--out GAMES.md]
 
 <index.json> is the built index (`ailocalpack index build`, with ratings so `verified` is current); <root> is the
-registry checkout, read for the manifests (voice and texture parts). Steam names and header images come from the
-Steam store; when the store can't be reached, the names the previous GAMES.md recorded are kept, so a flaky store
-never turns into a pull request. The output has no timestamp: it changes only when the translations do.
+registry checkout, read for the manifests (voice and texture parts, `gameName`). Steam and GOG names and pictures
+come from the store; when it can't be reached, the names the previous GAMES.md recorded are kept, so a flaky store
+never turns into a pull request. Epic Games and EA app games (no public lookup) and manual games take the name
+their newest manifest records. The output has no timestamp: it changes only when the translations do.
 """
 
 import argparse
@@ -15,7 +16,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from registry_common import LANGUAGES, previous_names, read_manifest, steam_details  # noqa: E402
+from registry_common import LANGUAGES, game_details, previous_names, read_manifest, store_details  # noqa: E402
 
 YES, NO = "✅", "➖"
 APP = "https://github.com/ailocalpack/ailocalpack"
@@ -56,21 +57,17 @@ def main():
         index = json.load(f)
 
     known = previous_names(args.out)
-    steam = {}
+    answers = {}
     rows = []
     for game_id, game in index.get("games", {}).items():
         packs = {lang: list(p) for lang, p in (game.get("packs") or {}).items() if p}
         if not packs:
             continue
-        if game_id.startswith("steam:"):
-            app_id = game_id.split(":", 1)[1]
-            details = steam_details(app_id) or known.get(game_id) or {"name": f"Steam app {app_id}", "image": ""}
-            steam[game_id] = details
-            name, image = details["name"], details["image"]
-            link = f"https://store.steampowered.com/app/{app_id}/"
-        else:
-            name = f"A game added from a folder ({game_id[:7]}…{game_id[-4:]})"
-            image, link = "", None
+        manifests = [read_manifest(args.root, p) for ps in packs.values() for p in ps]
+        details = game_details(game_id, manifests, known, store_details, known_first=False)
+        if details["cached"]:
+            answers[game_id] = details["cached"]
+        name, image, link = details["name"], details["image"], details["store"]
         rows.append((name.casefold(), game_id, name, image, link, packs))
     rows.sort()
 
@@ -116,7 +113,7 @@ def main():
         "",
         "<sub>Made by `scripts/games-md.py` from the published index; don't edit by hand.</sub>",
         "",
-        f"<!-- steam-names {json.dumps(steam, ensure_ascii=False, sort_keys=True)} -->",
+        f"<!-- store-names {json.dumps(answers, ensure_ascii=False, sort_keys=True)} -->",
         "",
     ]
     with open(args.out, "w", encoding="utf-8", newline="\n") as f:

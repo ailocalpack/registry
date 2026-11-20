@@ -6,9 +6,10 @@
 
 <index.json> is the built index (with ratings and requests); <root> the registry checkout (manifests for the engine,
 builds and agent; site/ for the stylesheet, script and icon); <out> the Pages folder, where games/ is already
-copied (a game page is games/<game folder>/index.html, beside its language folders). Steam names and pictures come
-from <names> (GAMES.md's steam-names marker) first, then from the store; a game the store doesn't answer for keeps
-"Steam app <id>". Every page is plain HTML that works without JavaScript; site.js adds the filters, the reader's
+copied (a game page is games/<game folder>/index.html, beside its language folders). Steam and GOG names and
+pictures come from <names> (GAMES.md's store-names marker) first, then from the store; Epic Games and EA app games
+(no public lookup), manual games and a game the store doesn't answer for take the name their newest manifest
+records (`gameName`), else "Steam game <id>" or the like. Every page is plain HTML that works without JavaScript; site.js adds the filters, the reader's
 language and relative times. Nothing in the output depends on the clock, only on the index.
 """
 
@@ -22,7 +23,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from registry_common import (  # noqa: E402
-    LANGUAGES, english_name, game_folder, native_name, previous_names, read_manifest, steam_details)
+    LANGUAGES, STORES, english_name, game_details, game_folder, native_name, previous_names, read_manifest, store_details,
+    store_of)
 
 APP = "https://github.com/ailocalpack/ailocalpack"
 DOWNLOAD = APP + "/releases/latest"
@@ -98,7 +100,7 @@ def engine_of(manifests):
     return "other" if manifests else None
 
 
-def collect(index, root, known, fetch=steam_details):
+def collect(index, root, known, fetch=store_details):
     games = []
     for game_id, entry in (index.get("games") or {}).items():
         if entry.get("optOut") or (entry.get("antiCheat") and not entry.get("antiCheatAllowed")):
@@ -112,14 +114,8 @@ def collect(index, root, known, fetch=steam_details):
             for p in ps:
                 p["_manifest"] = read_manifest(root, p)
                 manifests.append(p["_manifest"])
-        if game_id.startswith("steam:"):
-            app_id = game_id.split(":", 1)[1]
-            details = known.get(game_id) or fetch(app_id) or {"name": f"Steam app {app_id}", "image": ""}
-            name, image = details.get("name") or f"Steam app {app_id}", details.get("image") or ""
-            store = f"https://store.steampowered.com/app/{app_id}/"
-        else:
-            name, image, store = f"A game added from a folder ({game_id[3:10]}…)", "", None
-        games.append(Game(game_id, name, image, store, engine_of(manifests), packs, requests))
+        details = game_details(game_id, manifests, known, fetch)
+        games.append(Game(game_id, details["name"], details["image"], details["store"], engine_of(manifests), packs, requests))
     games.sort(key=lambda g: (-g.likes(), -g.pack_count, g.name.casefold()))
     return games
 
@@ -147,6 +143,7 @@ SPRITE = """<svg width="0" height="0" style="position:absolute" aria-hidden="tru
 <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></symbol>
 <symbol id="b-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></symbol>
 <symbol id="b-steam" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.253 0-2.265-1.014-2.265-2.265z"/></symbol>
+<symbol id="b-gog" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M7.15 15.24H4.36a.4.4 0 0 0-.4.4v2c0 .21.18.4.4.4h2.8v1.32h-3.5c-.56 0-1.02-.46-1.02-1.03v-3.39c0-.56.46-1.02 1.03-1.02h3.48v1.32zM8.16 11.54c0 .58-.47 1.05-1.05 1.05H2.63v-1.35h3.78a.4.4 0 0 0 .4-.4V6.39a.4.4 0 0 0-.4-.4H4.39a.4.4 0 0 0-.41.4v2.02c0 .23.18.4.4.4H6v1.35H3.68c-.58 0-1.05-.46-1.05-1.04V5.68c0-.57.47-1.04 1.05-1.04H7.1c.58 0 1.05.47 1.05 1.04v5.86zM21.36 19.36h-1.32v-4.12h-.93a.4.4 0 0 0-.4.4v3.72h-1.33v-4.12h-.93a.4.4 0 0 0-.4.4v3.72h-1.33v-4.42c0-.56.46-1.02 1.03-1.02h5.61v5.44zM21.37 11.54c0 .58-.47 1.05-1.05 1.05h-4.48v-1.35h3.78a.4.4 0 0 0 .4-.4V6.39a.4.4 0 0 0-.4-.4h-2.03a.4.4 0 0 0-.4.4v2.02c0 .23.18.4.4.4h1.62v1.35H16.9c-.58 0-1.05-.46-1.05-1.04V5.68c0-.57.47-1.04 1.05-1.04h3.43c.58 0 1.05.47 1.05 1.04v5.86zM13.72 4.64h-3.44c-.58 0-1.04.47-1.04 1.04v3.44c0 .58.46 1.04 1.04 1.04h3.44c.57 0 1.04-.46 1.04-1.04V5.68c0-.57-.47-1.04-1.04-1.04m-.3 1.75v2.02a.4.4 0 0 1-.4.4h-2.03a.4.4 0 0 1-.4-.4V6.4c0-.22.17-.4.4-.4H13c.23 0 .4.18.4.4zM12.63 13.92H9.24c-.57 0-1.03.46-1.03 1.02v3.39c0 .57.46 1.03 1.03 1.03h3.39c.57 0 1.03-.46 1.03-1.03v-3.39c0-.56-.46-1.02-1.03-1.02m-.3 1.72v2a.4.4 0 0 1-.4.4v-.01H9.94a.4.4 0 0 1-.4-.4v-1.99c0-.22.18-.4.4-.4h2c.22 0 .4.18.4.4zM23.49 1.1a1.74 1.74 0 0 0-1.24-.52H1.75A1.74 1.74 0 0 0 0 2.33v19.34a1.74 1.74 0 0 0 1.75 1.75h20.5A1.74 1.74 0 0 0 24 21.67V2.33c0-.48-.2-.92-.51-1.24m0 20.58a1.23 1.23 0 0 1-1.24 1.24H1.75A1.23 1.23 0 0 1 .5 21.67V2.33a1.23 1.23 0 0 1 1.24-1.24h20.5a1.24 1.24 0 0 1 1.24 1.24v19.34z"/></symbol>
 </defs></svg>"""
 
 
@@ -380,7 +377,7 @@ class Site:
   <h2>How it works</h2>
   <p class="sub">A free desktop app for Windows, macOS and Linux. No server of ours in between: just the app, GitHub and, if you want, your own AI.</p>
   <div class="steps">
-    <div class="step"><div class="ic">{icon("i-search")}</div><h3>Find your game</h3><p>The app finds your Steam games, or a folder you point it to, and shows the translations for your language with how many players confirmed they work.</p></div>
+    <div class="step"><div class="ic">{icon("i-search")}</div><h3>Find your game</h3><p>The app finds your games in Steam, Epic Games, GOG and the EA app, or a folder you point it to, and shows the translations for your language with how many players confirmed they work.</p></div>
     <div class="step"><div class="ic">{icon("i-download")}</div><h3>Install in one click</h3><p>The original files are backed up and uninstall puts them back. After a game update the translation is put back or you're told why it can't be.</p></div>
     <div class="step ai"><div class="ic">{icon("i-sparkles")}</div><h3>None yet? Make one</h3><p>Your Claude Code or Codex subscription translates the game, you try it in game, then publish it here for everyone.</p></div>
   </div>
@@ -411,8 +408,12 @@ class Site:
   <a class="btn gen sm" href="{DOWNLOAD}">{icon("i-sparkles", "i sm")}Translate with AI</a></div>"""
         facts = [f'<span class="badge engine">{e(ENGINES[game.engine])}</span>' if game.engine else "",
                  f'<span class="badge engine">{plural(game.pack_count, "translation", "translations")}</span>' if game.pack_count else ""]
-        store = (f'<a class="btn ghost" href="{e(game.store)}">{icon("b-steam", "i sm")}Store page</a>'
+        store_icon = {"steam": "b-steam", "gog": "b-gog"}.get(store_of(game.id))
+        store = (f'<a class="btn ghost" href="{e(game.store)}">{icon(store_icon, "i sm") if store_icon else ""}Store page</a>'
                  if game.store else "")
+        source = store_of(game.id)
+        finds = (f"It finds {e(game.name)} in {STORES[source][1]}." if source
+                 else f"Add {e(game.name)}'s folder in the app (<b>Add game folder</b>).")
         if game.packs:
             lead = f"Translated by players into {e(langs_text)}. Install from the app: it checks your game build first and keeps the original files."
         else:
@@ -433,7 +434,7 @@ class Site:
 <div class="wrap gbody">
   <div class="trs">{translations}</div>
   <div class="side">
-    <div class="panel"><h3>Install</h3><ol><li>Get <a href="{DOWNLOAD}">AI Local Pack</a> (free, Windows, macOS, Linux).</li><li>It finds {e(game.name)} in your Steam library{"" if game.store else " once you add its folder"}.</li><li>Open the game, tab <b>Text</b>, press <b>Install translation</b>.</li></ol></div>
+    <div class="panel"><h3>Install</h3><ol><li>Get <a href="{DOWNLOAD}">AI Local Pack</a> (free, Windows, macOS, Linux).</li><li>{finds}</li><li>Open the game, tab <b>Text</b>, press <b>Install translation</b>.</li></ol></div>
     {waiting}
     <div class="panel"><h3>Something wrong?</h3><p>Reviews and reports live in each translation's GitHub Discussion. The app sends yours after you've played.</p><a href="{self.github}#rating">How ratings work</a></div>
   </div>
@@ -535,7 +536,7 @@ def write(path, text):
         f.write(text)
 
 
-def build(index, root, out, repo, known, fetch=steam_details):
+def build(index, root, out, repo, known, fetch=store_details):
     owner, name = repo.split("/", 1)
     site = Site(repo, f"https://{owner}.github.io/{name}/")
     games = collect(index, root, known, fetch)
@@ -560,7 +561,7 @@ def main():
     parser.add_argument("index")
     parser.add_argument("--root", default=".")
     parser.add_argument("--out", default="_site")
-    parser.add_argument("--names", default="GAMES.md", help="a GAMES.md whose steam-names marker gives known names")
+    parser.add_argument("--names", default="GAMES.md", help="a GAMES.md whose store-names marker gives known names")
     parser.add_argument("--repo", default="ailocalpack/registry", help="owner/name: links and the Pages address")
     args = parser.parse_args()
     with open(args.index, encoding="utf-8") as f:
