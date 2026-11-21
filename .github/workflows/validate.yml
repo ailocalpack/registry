@@ -54,9 +54,15 @@ jobs:
         if: steps.scope.outputs.packs != ''
         env:
           PACKS: ${{ steps.scope.outputs.packs }}
+        # A revision may not drop a platform (Windows, macOS, Linux) the merged revision supports: HEAD^1 is master,
+        # its games/ tree the base the packs are compared with (a maintainer can still merge such a PR by hand).
         run: |
           read -ra packs <<< "$PACKS"
-          ailocalpack pack validate "${packs[@]}" --github
+          mkdir -p "$RUNNER_TEMP/base"
+          if git cat-file -e "HEAD^1:games" 2>/dev/null; then
+            git archive "HEAD^1" games | tar -x -C "$RUNNER_TEMP/base"
+          fi
+          ailocalpack pack validate "${packs[@]}" --github --base "$RUNNER_TEMP/base"
 
       # A binary patch pack's archive travels as an asset of the author's fork ("patches" release); auto-merge
       # copies it here. Names reach the shell through env only.

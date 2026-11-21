@@ -82,8 +82,9 @@ jobs:
           PACK: ${{ steps.scope.outputs.pack }}
         run: |
           scripts/check-alpha.sh "_pr/$PACK"
-          # _pr/ is a registry tree, so the layout check sees games/<game>/<language>/<pack-id>.
-          ailocalpack pack validate "_pr/$PACK"
+          # _pr/ is a registry tree, so the layout check sees games/<game>/<language>/<pack-id>; the checkout is
+          # master, the base a revision may not drop a platform of.
+          ailocalpack pack validate "_pr/$PACK" --base .
 
       - name: Check the patch archive
         if: steps.scope.outputs.kind == 'pack'
