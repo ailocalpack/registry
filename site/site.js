@@ -53,6 +53,46 @@
     return "*";
   }
 
+  // ---------------------------------------------------------------- download menus
+  // Close on a click outside or Esc, one open at a time, kept on screen; the reader's own computer first and marked.
+  const menus = $$("details.dl");
+  const closeAll = (except) => { for (const d of menus) if (d !== except) d.open = false; };
+  for (const d of menus) d.addEventListener("toggle", () => {
+    if (!d.open) return;
+    closeAll(d);
+    const menu = $(".dl-menu", d);
+    menu.style.removeProperty("--dl-shift");
+    const r = menu.getBoundingClientRect(), vw = document.documentElement.clientWidth, gap = 16;
+    const shift = r.right > vw - gap ? vw - gap - r.right : r.left < gap ? gap - r.left : 0;
+    if (shift) menu.style.setProperty("--dl-shift", `${Math.round(shift)}px`);
+  });
+  document.addEventListener("click", ev => { if (!ev.target.closest("details.dl")) closeAll(); });
+  document.addEventListener("keydown", ev => {
+    if (ev.key !== "Escape") return;
+    const open = menus.find(d => d.open);
+    if (open) { open.open = false; $("summary", open).focus(); }
+  });
+  (async () => {
+    const uad = navigator.userAgentData;
+    const ua = navigator.userAgent;
+    const p = ((uad && uad.platform) || navigator.platform || "").toLowerCase();
+    let arch = "";
+    if (uad && uad.getHighEntropyValues) {
+      try { arch = (await uad.getHighEntropyValues(["architecture"])).architecture || ""; } catch { /* not told */ }
+    }
+    let rid = "";
+    if (/android|iphone|ipad|ipod/i.test(ua) || (/mac/.test(p) && navigator.maxTouchPoints > 1)) rid = "";
+    else if (p.startsWith("win") || /Windows NT/.test(ua)) rid = arch === "arm" ? "win-arm64" : "win-x64";
+    else if (p.startsWith("mac")) rid = arch === "x86" ? "osx-x64" : "osx-arm64";  // Safari and Firefox don't say: most Macs have Apple chips
+    else if (p.includes("linux") || /Linux/.test(ua)) rid = "linux-x64";
+    if (!rid) return;
+    for (const li of $$(`.dl-menu li[data-rid="${rid}"]`)) {
+      li.classList.add("mine");
+      $(".dl-name small", li).insertAdjacentHTML("afterbegin", '<span class="dl-you">Your computer</span>');
+      li.parentElement.prepend(li);
+    }
+  })();
+
   const page = document.body.dataset.page;
   if (page === "catalog") catalog();
   if (page === "game") gamePage();

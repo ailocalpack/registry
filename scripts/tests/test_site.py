@@ -271,6 +271,22 @@ class SiteTest(unittest.TestCase):
         self.assertIn("Add game folder", page)
         self.assertEqual([g for g in self.fetched if g.startswith("fp:")], [])
 
+    def test_download_buttons_open_a_menu_with_each_platforms_file_of_the_latest_release(self):
+        # Arrange
+        latest = "https://github.com/ailocalpack/ailocalpack/releases/latest/download/AiLocalPack-"
+
+        # Act
+        self.build()
+
+        # Assert
+        page = self.read("games", "steam-620", "index.html")
+        self.assertNotIn('class="btn accent" href="https://github.com/ailocalpack/ailocalpack/releases/latest"', page)
+        self.assertIn('<details class="dl end"><summary class="btn accent sm">', page)
+        for file in ["win-x64-Setup.exe", "win-x64-Portable.zip", "win-arm64-Setup.exe", "win-arm64-Portable.zip",
+                     "osx-arm64-Setup.pkg", "osx-arm64-Portable.zip", "osx-x64-Setup.pkg", "osx-x64-Portable.zip",
+                     "linux-x64.AppImage"]:
+            self.assertIn(f'href="{latest}{file}"', page)
+
     def test_sitemap_and_robots_name_the_pages_address(self):
         # Arrange / Act
         self.build()
