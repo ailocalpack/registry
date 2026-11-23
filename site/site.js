@@ -87,7 +87,6 @@
     else if (p.includes("linux") || /Linux/.test(ua)) rid = "linux-x64";
     if (!rid) return;
     for (const li of $$(`.dl-menu li[data-rid="${rid}"]`)) {
-      li.classList.add("mine");
       $(".dl-name small", li).insertAdjacentHTML("afterbegin", '<span class="dl-you">Your computer</span>');
       li.parentElement.prepend(li);
     }
