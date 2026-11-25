@@ -2,14 +2,15 @@
 """Writes the registry's public site next to index.json on GitHub Pages: a catalog of the games with translations
 (search and filters), one page per game, the open translation requests, sitemap.xml, robots.txt and 404.html.
 
-    python3 -I scripts/site.py <index.json> --root . --out _site [--names GAMES.md] [--repo ailocalpack/registry]
+    python3 -I scripts/site.py <index.json> --root . --out _site [--names store-names.json] [--repo ailocalpack/registry]
 
 <index.json> is the built index (with ratings and requests); <root> the registry checkout (manifests for the engine,
 builds and agent; site/ for the stylesheet, script and icon); <out> the Pages folder, where games/ is already
 copied (a game page is games/<game folder>/index.html, beside its language folders). Steam and GOG names and
-pictures come from <names> (GAMES.md's store-names marker) first, then from the store; Epic Games and EA app games
-(no public lookup), manual games and a game the store doesn't answer for take the name their newest manifest
-records (`gameName`), else "Steam game <id>" or the like. Every page is plain HTML that works without JavaScript; site.js adds the filters, the reader's
+pictures come from the store, else from <names> (the store-names.json of the previous publish, so a flaky store
+never loses a name); what the stores answered is written to <out>/store-names.json for the next run. Epic Games and
+EA app games (no public lookup), manual games and a game no store answer is known for take the name their newest
+manifest records (`gameName`), else "Steam game <id>" or the like. Every page is plain HTML that works without JavaScript; site.js adds the filters, the reader's
 language and relative times. Nothing in the output depends on the clock, only on the index.
 """
 
@@ -130,7 +131,8 @@ def engine_of(manifests):
     return "other" if manifests else None
 
 
-def collect(index, root, known, fetch=store_details):
+def collect(index, root, known, fetch=store_details, answers=None):
+    """The games to show; <answers> (when given) gets what the stores answered, game ID → details."""
     games = []
     for game_id, entry in (index.get("games") or {}).items():
         if entry.get("optOut") or (entry.get("antiCheat") and not entry.get("antiCheatAllowed")):
@@ -144,7 +146,9 @@ def collect(index, root, known, fetch=store_details):
             for p in ps:
                 p["_manifest"] = read_manifest(root, p)
                 manifests.append(p["_manifest"])
-        details = game_details(game_id, manifests, known, fetch)
+        details = game_details(game_id, manifests, known, fetch, known_first=False)
+        if details["cached"] and answers is not None:
+            answers[game_id] = details["cached"]
         games.append(Game(game_id, details["name"], details["image"], details["store"], engine_of(manifests), packs, requests))
     games.sort(key=lambda g: (-g.likes(), -g.pack_count, g.name.casefold()))
     return games
@@ -573,8 +577,10 @@ def write(path, text):
 def build(index, root, out, repo, known, fetch=store_details):
     owner, name = repo.split("/", 1)
     site = Site(repo, f"https://{owner}.github.io/{name}/")
-    games = collect(index, root, known, fetch)
+    answers = {}
+    games = collect(index, root, known, fetch, answers)
     write(os.path.join(out, "index.html"), site.home(games, index))
+    write(os.path.join(out, "store-names.json"), json.dumps(answers, ensure_ascii=False, sort_keys=True, indent=1) + "\n")
     for game in games:
         path, text = site.game_page(game)
         write(os.path.join(out, path, "index.html"), text)
@@ -595,13 +601,12 @@ def main():
     parser.add_argument("index")
     parser.add_argument("--root", default=".")
     parser.add_argument("--out", default="_site")
-    parser.add_argument("--names", default="GAMES.md", help="a GAMES.md whose store-names marker gives known names")
+    parser.add_argument("--names", help="the previous publish's store-names.json: names when a store doesn't answer")
     parser.add_argument("--repo", default="ailocalpack/registry", help="owner/name: links and the Pages address")
     args = parser.parse_args()
     with open(args.index, encoding="utf-8") as f:
         index = json.load(f)
-    games = build(index, args.root, args.out, args.repo, previous_names(os.path.join(args.root, args.names)
-                                                                         if not os.path.isabs(args.names) else args.names))
+    games = build(index, args.root, args.out, args.repo, previous_names(args.names))
     print(f"Site: {plural(len(games), 'game', 'games')} into {args.out}")
     return 0
 

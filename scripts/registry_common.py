@@ -1,10 +1,9 @@
-"""What GAMES.md (scripts/games-md.py) and the site (scripts/site.py) share: language names, game names and
-pictures from the stores (Steam, GOG) or the packs' own manifests (`gameName`), manifests. Standard library only; the scripts run with `python3 -I` (they add this folder to
+"""What the site (scripts/site.py) uses: language names, game names and pictures from the stores (Steam, GOG) or
+the packs' own manifests (`gameName`), manifests. Standard library only; the scripts run with `python3 -I` (they add this folder to
 sys.path themselves)."""
 
 import json
 import os
-import re
 import urllib.request
 
 # Tag → (English name, native name): the languages Steam supports (the app's GameLanguages.Tags).
@@ -22,9 +21,6 @@ LANGUAGES = {
     "vi": ("Vietnamese", "Tiếng Việt"), "zh-Hans": ("Chinese (Simplified)", "简体中文"),
     "zh-Hant": ("Chinese (Traditional)", "繁體中文"),
 }
-
-# GAMES.md's cache of what the stores answered (game ID → {"name", "image"}); `steam-names` is its name before GOG.
-NAMES_MARKER = re.compile(r"<!-- (?:store|steam)-names (\{.*\}) -->")
 
 # Game ID prefix → (store name, where the app finds its games). Epic Games and the EA app have no public lookup
 # by the IDs the app records, so their names come from the manifests and they get no store link.
@@ -56,11 +52,14 @@ def store_of(game_id):
 
 
 def previous_names(path):
-    """Store names and pictures a GAMES.md recorded in its `<!-- store-names {...} -->` marker; {} when none."""
+    """What the stores answered at the previous publish (store-names.json: game ID → {"name", "image"}, GOG also
+    "store"); {} when there is no such file or it can't be read."""
+    if not path:
+        return {}
     try:
         with open(path, encoding="utf-8") as f:
-            match = NAMES_MARKER.search(f.read())
-        return json.loads(match.group(1)) if match else {}
+            data = json.load(f)
+        return {k: v for k, v in data.items() if isinstance(v, dict)} if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
 
