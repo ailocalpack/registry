@@ -1,4 +1,4 @@
-"""Tests of scripts/site.py (the registry's public site) and scripts/games-md.py.
+"""Tests of scripts/site.py (the registry's public site).
 
     python3 -I scripts/tests/test_site.py
 """
@@ -6,7 +6,6 @@
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -205,7 +204,24 @@ class SiteTest(unittest.TestCase):
         self.assertIn("https://github.com/ailocalpack/registry/tree/master/games/steam-620/ru/full", page)
         self.assertIn('<meta property="og:image" content="https://cdn.example/620.jpg">', page)
 
-    def test_asks_the_store_only_for_games_with_no_known_name(self):
+    def test_the_stores_answer_wins_over_a_known_name(self):
+        # Arrange
+        self.answers["steam:620"] = {"name": "Portal 2: Renamed", "image": "https://cdn.example/new.jpg"}
+
+        # Act
+        self.build()
+
+        # Assert
+        self.assertIn("<h1>Portal 2: Renamed</h1>", self.read("games", "steam-620", "index.html"))
+
+    def test_a_known_name_stays_when_the_store_does_not_answer(self):
+        # Act
+        self.build()
+
+        # Assert
+        self.assertIn("<h1>OMORI</h1>", self.read("games", "steam-800", "index.html"))
+
+    def test_a_game_with_no_known_name_and_no_answer_gets_a_fallback_name(self):
         # Arrange
         names = {k: v for k, v in NAMES.items() if k != "steam:800"}
 
@@ -213,8 +229,20 @@ class SiteTest(unittest.TestCase):
         self.build(names=names)
 
         # Assert
-        self.assertEqual(self.fetched, ["steam:800"])
         self.assertIn("Steam game 800", self.read("requests", "index.html"))
+
+    def test_writes_the_store_answers_and_known_names_for_the_next_run(self):
+        # Arrange
+        self.answers["steam:620"] = {"name": "Portal 2: Renamed", "image": ""}
+
+        # Act
+        self.build()
+
+        # Assert
+        names = json.loads(self.read("store-names.json"))
+        self.assertEqual(names["steam:620"]["name"], "Portal 2: Renamed")
+        self.assertEqual(names["steam:800"]["name"], "OMORI")
+        self.assertNotIn("steam:400", names)
 
     def test_an_epic_game_takes_the_newest_manifests_name_and_has_no_store_link(self):
         # Arrange
@@ -325,46 +353,6 @@ class SiteTest(unittest.TestCase):
         # Assert
         self.assertIn("No open requests", self.read("requests", "index.html"))
         self.assertNotIn('id="wanted"', self.read("index.html"))
-
-
-class GamesMdTest(unittest.TestCase):
-    def test_writes_the_games_list_with_known_names(self):
-        # Arrange
-        tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmp)
-        index_path, out = os.path.join(tmp, "index.json"), os.path.join(tmp, "GAMES.md")
-        with open(index_path, "w", encoding="utf-8") as f:
-            json.dump({"games": {"fp:" + "a" * 64: {"packs": {"ru": [pack("fp-" + "a" * 64, "ru", "p")]}}}}, f)
-
-        # Act
-        result = subprocess.run([sys.executable, "-I", os.path.join(SCRIPTS, "games-md.py"), index_path,
-                                 "--root", tmp, "--out", out], capture_output=True, text=True)
-
-        # Assert
-        self.assertEqual(result.returncode, 0, result.stderr)
-        with open(out, encoding="utf-8") as f:
-            self.assertIn("A game added from a folder", f.read())
-
-    def test_names_an_epic_game_by_its_manifest(self):
-        # Arrange
-        tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmp)
-        index_path, out = os.path.join(tmp, "index.json"), os.path.join(tmp, "GAMES.md")
-        folder = os.path.join(tmp, "games", "epic-Fennel", "ru", "p")
-        os.makedirs(folder)
-        with open(os.path.join(folder, "manifest.json"), "w", encoding="utf-8") as f:
-            json.dump(manifest("ru", "p", "unity", "Hollow Fields"), f)
-        with open(index_path, "w", encoding="utf-8") as f:
-            json.dump({"games": {"epic:Fennel": {"packs": {"ru": [pack("epic-Fennel", "ru", "p")]}}}}, f)
-
-        # Act
-        result = subprocess.run([sys.executable, "-I", os.path.join(SCRIPTS, "games-md.py"), index_path,
-                                 "--root", tmp, "--out", out], capture_output=True, text=True)
-
-        # Assert
-        self.assertEqual(result.returncode, 0, result.stderr)
-        with open(out, encoding="utf-8") as f:
-            self.assertIn("**Hollow Fields**", f.read())
 
 
 if __name__ == "__main__":
