@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "claude-code",
+  "game": "steam:2989180",
+  "gameName": "Darwin's Paradox",
+  "language": "ru",
+  "title": "Claude Code translation",
+  "authors": [
+    {
+      "github": "maximiliysiss",
+      "name": "Maxim Zimin"
+    }
+  ],
+  "revision": 1,
+  "revisions": [
+    {
+      "revision": 1,
+      "date": "2026-11-25T20:16:33Z",
+      "by": "maximiliysiss"
+    }
+  ],
+  "status": "alpha",
+  "agent": {
+    "id": "claude-code",
+    "version": "2.1.325",
+    "model": "claude-sonnet-5-5",
+    "quality": "balanced"
+  },
+  "builds": [
+    {
+      "buildId": "22944013",
+      "files": {
+        "DarwinParadox/Content/Paks/DarwinParadox-Windows.pak": "2712d42229d91019b55925e0ed08fc838a3446a02d8a69c075d12246fcec4ee5"
+      },
+      "os": "windows"
+    }
+  ],
+  "recipe": {
+    "tool": "unreal",
+    "version": "1.0.0"
+  },
+  "strings": {
+    "path": "strings/strings.json.gz",
+    "sha256": "6225ef44fca36163975ff85c9b5b4e1f14628699441bc6b80939a7a83b0e00fe",
+    "size": 26453
+  },
+  "coverage": {
+    "translated": 457,
+    "total": 488
+  },
+  "license": "CC-BY-SA-4.0",
+  "created": "2026-11-25T20:16:33Z",
+  "updated": "2026-11-25T20:16:33Z"
+}
