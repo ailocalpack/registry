@@ -50,6 +50,27 @@ jobs:
           PACK: ${{ steps.scope.outputs.pack }}
         run: scripts/check-alpha.sh "$PACK"
 
+      # A new pack names whoever opens the pull request first; a revision of someone else's pack waits for one of
+      # its authors to approve it (auto-merge decides; here it is only said).
+      - name: Authors
+        if: steps.scope.outputs.kind == 'pack'
+        env:
+          PACK: ${{ steps.scope.outputs.pack }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/owner"
+          if git cat-file -e "HEAD^1:games" 2>/dev/null; then
+            git archive "HEAD^1" games | tar -x -C "$RUNNER_TEMP/owner"
+          fi
+          echo '[]' > "$RUNNER_TEMP/reviews.json"
+          out="$(scripts/check-owner.sh "$PACK" "$RUNNER_TEMP/owner" "$AUTHOR" "$RUNNER_TEMP/reviews.json" "$HEAD_SHA")"
+          echo "$out"
+          if grep -q '^owner=wait$' <<< "$out"; then
+            authors="$(sed -n 's/^authors=//p' <<< "$out")"
+            echo "::notice title=Authors::A new revision of someone else's pack: it goes in once one of its authors ($authors) approves this pull request."
+          fi
+
       - name: Validate packs
         if: steps.scope.outputs.packs != ''
         env:

@@ -1,0 +1,21 @@
+# Starts Auto-merge when someone reviews a pull request: a revision of someone else's pack goes in once one of the
+# pack's authors approves it. Runs the pull request's copy with no permissions and does nothing itself; Auto-merge
+# (master's copy) reads the reviews and repeats every check.
+name: Review
+
+on:
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions: {}
+
+jobs:
+  review:
+    if: github.event.pull_request.base.ref == 'master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - env:
+          STATE: ${{ github.event.review.state }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: echo "Review $STATE on PR $NUMBER; Auto-merge decides."

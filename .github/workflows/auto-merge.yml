@@ -2,12 +2,24 @@
 # with a write token, so it trusts nothing from the pull request: it reads the changed files from the API,
 # checks out the head commit as data (no script from it runs; only the pinned released CLI and
 # master's scripts), and repeats the scope, alpha and validation checks itself before merging.
+#
+# A revision of someone else's pack waits for one of the merged pack's authors to approve the pull request
+# (scripts/check-owner.sh): labelled awaiting-author (or author-declined once an author asks for changes, left to a
+# maintainer), the authors mentioned once. A review starts this workflow again (Review), and an hourly sweep
+# re-checks every waiting pull request in case a review's run didn't start.
 name: Auto-merge
 
 on:
   workflow_run:
-    workflows: [Validate]
+    workflows: [Validate, Review]
     types: [completed]
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to check again
+        required: true
 
 permissions:
   contents: write
@@ -15,8 +27,27 @@ permissions:
   actions: write
 
 jobs:
+  sweep:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check waiting pull requests again
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr list --repo "$REPO" --state open --base master --limit 200 --json number,labels \
+            --jq '.[] | select(any(.labels[]; .name == "awaiting-author" or .name == "author-declined")) | .number' |
+          while read -r number; do
+            gh workflow run auto-merge.yml --repo "$REPO" --ref master -f "pr=$number"
+          done
+
   merge:
-    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+          && (github.event.workflow_run.event == 'pull_request' || github.event.workflow_run.event == 'pull_request_review'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -25,19 +56,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_HEAD: ${{ github.event.workflow_run.head_sha }}
+          FROM_VALIDATE: ${{ github.event.workflow_run.name == 'Validate' && github.event.workflow_run.event == 'pull_request' }}
+          INPUT_PR: ${{ inputs.pr }}
         run: |
-          # workflow_run.pull_requests is empty for pull requests from forks, so look the head commit up.
-          number="$(gh pr list --repo "$REPO" --state open --base master --limit 200 --json number,headRefOid \
-            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n 1)"
+          if [[ -n "$INPUT_PR" ]]; then
+            [[ "$INPUT_PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number"; exit 1; }
+            number="$(gh pr view "$INPUT_PR" --repo "$REPO" --json number,state,baseRefName \
+              --jq 'select(.state == "OPEN" and .baseRefName == "master") | .number')"
+            head="$(gh pr view "$INPUT_PR" --repo "$REPO" --json headRefOid --jq .headRefOid)"
+          else
+            head="$RUN_HEAD"
+            # workflow_run.pull_requests is empty for pull requests from forks, so look the head commit up.
+            number="$(gh pr list --repo "$REPO" --state open --base master --limit 200 --json number,headRefOid \
+              --jq ".[] | select(.headRefOid == \"$head\") | .number" | head -n 1)"
+          fi
           if [[ -z "$number" ]]; then
-            echo "No open pull request has head $HEAD_SHA (closed, or new commits pushed since)."
+            echo "No open pull request has head $head (closed, or new commits pushed since)."
             exit 0
           fi
-          echo "number=$number" >> "$GITHUB_OUTPUT"
-          # The fork the pull request comes from: where a patch pack's archive waits (its "patches" release).
-          gh pr view "$number" --repo "$REPO" --json headRepositoryOwner,headRepository \
-            --jq '"head_repo=" + .headRepositoryOwner.login + "/" + .headRepository.name' >> "$GITHUB_OUTPUT"
+          # Started by a review or by hand: only once Validate passed on this head (its own run decides otherwise).
+          if [[ "$FROM_VALIDATE" != "true" ]]; then
+            validate="$(gh api "repos/$REPO/commits/$head/check-runs?check_name=validate&per_page=100" \
+              --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.started_at) | last | .conclusion // ""')"
+            if [[ "$validate" != "success" ]]; then
+              echo "Validate hasn't passed on $head (${validate:-not run}); its run decides."
+              exit 0
+            fi
+          fi
+          # The fork the pull request comes from: where a patch pack's archive waits (its "patches" release), and who opened it.
+          {
+            echo "number=$number"
+            echo "head=$head"
+            gh pr view "$number" --repo "$REPO" --json headRepositoryOwner,headRepository,author \
+              --jq '"head_repo=" + .headRepositoryOwner.login + "/" + .headRepository.name, "author=" + .author.login'
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v5
         if: steps.pr.outputs.number
@@ -52,7 +105,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           NUMBER: ${{ steps.pr.outputs.number }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
         run: |
           mkdir -p _pr
           git fetch --no-tags --depth=1 origin "+refs/pull/$NUMBER/head:refs/remotes/pr/head"
@@ -95,10 +148,55 @@ jobs:
           HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
         run: scripts/check-patch.sh "_pr/$PACK" "$REPO" "$HEAD_REPO" "$RUNNER_TEMP/patch" | tee -a "$GITHUB_OUTPUT"
 
+      - name: Authors' approval
+        if: steps.scope.outputs.kind == 'pack'
+        id: owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          PACK: ${{ steps.scope.outputs.pack }}
+          AUTHOR: ${{ steps.pr.outputs.author }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
+        run: |
+          gh api --paginate "repos/$REPO/pulls/$NUMBER/reviews" --jq '.[]' | jq -s . > "$RUNNER_TEMP/reviews.json"
+          out="$(scripts/check-owner.sh "_pr/$PACK" . "$AUTHOR" "$RUNNER_TEMP/reviews.json" "$HEAD_SHA")"
+          echo "$out" | tee -a "$GITHUB_OUTPUT"
+          state="$(sed -n 's/^owner=//p' <<< "$out")"
+          authors="$(sed -n 's/^authors=//p' <<< "$out")"
+          label() { gh label create "$1" --repo "$REPO" --color "$2" --description "$3" 2>/dev/null || true; }
+          case "$state" in
+            ok)
+              gh pr edit "$NUMBER" --repo "$REPO" --remove-label awaiting-author --remove-label author-declined 2>/dev/null || true
+              ;;
+            wait)
+              label awaiting-author fbca04 "A revision of someone else's pack: waits for one of its authors to approve"
+              gh pr edit "$NUMBER" --repo "$REPO" --add-label awaiting-author --remove-label author-declined 2>/dev/null \
+                || gh pr edit "$NUMBER" --repo "$REPO" --add-label awaiting-author
+              # The authors are told once (GitHub notifies a mentioned login); the marker finds the earlier comment.
+              if ! gh api --paginate "repos/$REPO/issues/$NUMBER/comments" --jq '.[].body' | grep -q 'ailocalpack-owner'; then
+                mentions="$(for login in $authors; do printf '@%s ' "$login"; done)"
+                printf '%s\n\n%s\n\n%s\n' \
+                  "<!-- ailocalpack-owner -->" \
+                  "${mentions% }: this is a new revision of your translation by @$AUTHOR. It goes into the registry once one of you approves this pull request (Files changed → Review changes → Approve)." \
+                  "If you'd rather it didn't, choose Request changes and say why: a maintainer then decides. Nothing is merged without an approval." \
+                  > "$RUNNER_TEMP/comment.md"
+                gh pr comment "$NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/comment.md"
+              fi
+              echo "Waiting for an author's approval ($authors)."
+              ;;
+            declined)
+              label author-declined d93f0b "An author of the pack asked for changes: a maintainer decides"
+              gh pr edit "$NUMBER" --repo "$REPO" --add-label author-declined --remove-label awaiting-author 2>/dev/null \
+                || gh pr edit "$NUMBER" --repo "$REPO" --add-label author-declined
+              echo "An author asked for changes: left to a maintainer."
+              ;;
+          esac
+
       # Before the merge, so the published index never names an asset that isn't there. A name already taken
       # (an earlier run of this workflow) must hold the same bytes; a different file is never replaced.
       - name: Copy the patch archive to the registry
-        if: steps.patch.outputs.archive
+        if: steps.patch.outputs.archive && steps.owner.outputs.owner == 'ok'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -118,12 +216,12 @@ jobs:
           fi
 
       - name: Merge
-        if: steps.scope.outputs.kind == 'pack'
+        if: steps.scope.outputs.kind == 'pack' && steps.owner.outputs.owner == 'ok'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           NUMBER: ${{ steps.pr.outputs.number }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head }}
         run: |
           gh pr merge "$NUMBER" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
           # A push made with GITHUB_TOKEN starts no workflow, so start the index publish explicitly.
